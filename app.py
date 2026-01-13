@@ -5,129 +5,93 @@ import math
 from fpdf import FPDF
 import base64
 
-# --- Page Configuration ---
-st.set_page_config(page_title="SEF Terminal Pro", page_icon="🛡️", layout="wide")
+# --- الإعدادات العامة ---
+st.set_page_config(page_title="SEF Terminal Ultimate", page_icon="🛡️", layout="wide")
 
-# --- Helper Function: PDF Report Generation ---
-def create_download_link(ticker, price, anchor, target, rr, qty, status):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    
-    # Title
-    pdf.cell(200, 10, txt="SEF Terminal - Trade Executive Summary", ln=True, align='C')
-    pdf.ln(10)
-    
-    # Content
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Ticker Symbol: {ticker}", ln=True)
-    pdf.cell(200, 10, txt=f"Market Price: {price}", ln=True)
-    pdf.cell(200, 10, txt=f"Anchor Level (SL): {anchor}", ln=True)
-    pdf.cell(200, 10, txt=f"Target Price: {target}", ln=True)
-    pdf.cell(200, 10, txt=f"Risk:Reward Ratio: 1:{round(rr, 2)}", ln=True)
-    pdf.cell(200, 10, txt=f"Suggested Quantity: {qty} shares", ln=True)
-    pdf.cell(200, 10, txt=f"Market Status: {status}", ln=True)
-    
-    # Recommendation
-    pdf.ln(10)
-    recommendation = "APPROVED" if rr >= 3 else "REJECTED (High Risk)"
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt=f"Final Decision: {recommendation}", ln=True)
-    
-    # Convert PDF to bytes
-    pdf_output = pdf.output(dest='S').encode('latin-1')
-    b64 = base64.b64encode(pdf_output).decode()
-    return f'<a href="data:application/octet-stream;base64,{b64}" download="SEF_{ticker}_Report.pdf">📥 Click here to Download Report</a>'
+# --- دالة إنشاء التقرير النصي ---
+def generate_sef_report(ticker, price, anchor, target, rr, qty, status):
+    return f"""
+SEF STRATEGIC ANALYSIS REPORT
+Ticker: {ticker} | Price: {price}
 
-# --- Technical Analysis Engine ---
-def get_technical_levels(ticker):
+1. Trend / Structure: {status}
+2. Support (Anchor): {anchor}
+3. Target: {target}
+4. R:R Ratio: 1:{round(rr, 2)}
+5. Position Size: {qty} Shares
+
+"Capital preservation is the first priority."
+    """
+
+# --- دالة تحميل الـ PDF ---
+def download_pdf(content, filename):
     try:
-        data = yf.Ticker(ticker).history(period="6mo")
-        if data.empty: return None, None, None, None
-        
-        # 1. Identify Support (Anchor) & Resistance
-        recent_20 = data.tail(20)
-        resistance = recent_20['High'].max()
-        support = recent_20['Low'].min()
-        
-        # 2. Institutional Average (EMA 200)
-        ema_200 = data['Close'].ewm(span=200, adjust=False).mean().iloc[-1]
-        
-        # 3. Market Status Detection
-        last_close = data['Close'].iloc[-1]
-        status = "Neutral"
-        if last_close > resistance * 0.98: status = "🔥 Potential Breakout"
-        elif last_close < support * 1.05: status = "🛡️ Near Anchor Zone"
-        
-        return round(support, 2), round(resistance, 2), round(ema_200, 2), status
-    except:
-        return None, None, None, None
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        for line in content.split('\n'):
+            pdf.cell(0, 10, txt=line, ln=True)
+        pdf_output = pdf.output(dest='S').encode('latin-1')
+        b64 = base64.b64encode(pdf_output).decode()
+        return f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}" style="background-color: #ff4b4b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">📥 Download PDF Report</a>'
+    except: return "PDF Error"
 
-# --- Main Interface ---
-st.title("🛡️ SEF Terminal | Technical Radar")
+# --- محرك الرادار الفني ---
+def get_tech(ticker):
+    try:
+        data = yf.Ticker(ticker).history(period="1y")
+        if data.empty: return None, None
+        return round(data['Low'].tail(20).min(), 2), round(data['High'].tail(20).max(), 2)
+    except: return None, None
 
-st.sidebar.header("⚙️ Portfolio Settings")
-balance = st.sidebar.number_input("Total Account Balance", value=100000)
-risk_pct = st.sidebar.slider("Risk per Trade (%)", 0.5, 5.0, 1.0)
+# --- واجهة المستخدم الرئيسية ---
+st.title("🛡️ SEF Terminal | Ultimate Hub")
 
-# --- Input Section ---
-col1, col2, col3 = st.columns(3)
-with col1:
-    ticker = st.text_input("Ticker Symbol (e.g., 2222.SR or TSLA)", "4009.SR")
-    if st.button("Activate Auto-Radar 🛰️"):
-        sup, res, ema, stat = get_technical_levels(ticker)
+# السايدبار
+balance = st.sidebar.number_input("Portfolio Balance", value=100000)
+risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
+
+# --- الصف الأول: رمز السهم وزر الرادار ---
+col_r1, col_r2 = st.columns([3, 1])
+with col_r1:
+    ticker = st.text_input("Ticker Symbol", "4009.SR").upper()
+with col_r2:
+    st.write("##") # للمحاذاة
+    if st.button("Activate Radar 🛰️", use_container_width=True):
+        sup, res = get_tech(ticker)
         if sup:
-            st.session_state['anchor_point'] = sup
-            st.session_state['market_status'] = stat
-            st.info(f"Radar Detected: Support (Anchor) at {sup} | Resistance at {res}")
-        else:
-            st.error("Failed to fetch data. Please check the ticker.")
+            st.session_state['anchor'] = sup
+            st.success(f"Radar: Support @ {sup}")
 
-with col2:
-    default_anchor = st.session_state.get('anchor_point', 31.72)
-    anchor_level = st.number_input("Anchor Level (Stop Loss)", value=float(default_anchor))
-with col3:
-    target_price = st.number_input("Target Price", value=39.36)
+# --- الصف الثاني: المدخلات وزر التحليل (كلهم جنب بعض) ---
+c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+with c1:
+    curr_p = st.number_input("Price", value=33.90)
+with c2:
+    anc_p = st.number_input("Anchor", value=float(st.session_state.get('anchor', 31.72)))
+with c3:
+    tar_p = st.number_input("Target", value=39.36)
+with c4:
+    st.write("##") # للمحاذاة
+    run_analysis = st.button("Analyze & Report 📊", use_container_width=True)
 
-# --- Execution & Analysis ---
-if st.button("Analyze Trade & Show Chart"):
-    data = yf.Ticker(ticker).history(period="6mo")
-    if not data.empty:
-        current_price = round(data['Close'].iloc[-1], 2)
-        
-        # Calculations
-        risk_per_share = abs(current_price - anchor_level)
-        reward_per_share = abs(target_price - current_price)
-        rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
-        
-        risk_amount = balance * (risk_pct / 100)
-        quantity = math.floor(risk_amount / risk_per_share) if risk_per_share > 0 else 0
-        total_investment = quantity * current_price
-        
-        # Display Results
-        current_status = st.session_state.get('market_status', 'Analyzed')
-        st.markdown(f"### Market Status: {current_status}")
-        
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Current Price", f"{current_price}")
-        k2.metric("Risk:Reward", f"1:{round(rr_ratio, 2)}")
-        k3.metric("Shares to Buy", f"{quantity}")
-        k4.metric("Risk Amount", f"{round(risk_amount, 2)}")
+st.markdown("---")
 
-        # --- Visual Charting ---
-        st.subheader("Technical Chart Analysis")
-        chart_data = data[['Close']].copy()
-        chart_data['Anchor'] = anchor_level
-        chart_data['Target'] = target_price
-        st.line_chart(chart_data)
-        
-        # --- PDF Report Link ---
-        st.markdown("---")
-        if rr_ratio >= 3.0:
-            st.success(f"🎯 SEF Standard Met! Excellent Opportunity.")
-        
-        # PDF Generator Button
-        report_link = create_download_link(ticker, current_price, anchor_level, target_price, rr_ratio, quantity, current_status)
-        st.markdown(report_link, unsafe_allow_html=True)
-    else:
-        st.error("Invalid Ticker Symbol.")
+# --- تنفيذ التحليل عند الضغط على الزر ---
+if run_analysis:
+    risk_s = abs(curr_p - anc_p)
+    rr = (tar_p - curr_p) / risk_s if risk_s > 0 else 0
+    qty = math.floor((balance * (risk_pct/100)) / risk_s) if risk_s > 0 else 0
+    
+    # عرض النتائج
+    res_col1, res_col2 = st.columns(2)
+    with res_col1:
+        st.metric("R:R Ratio", f"1:{round(rr, 2)}")
+        st.metric("Quantity", f"{qty} Shares")
+    with res_col2:
+        report = generate_sef_report(ticker, curr_p, anc_p, tar_p, rr, qty, "Analysis Done")
+        st.code(report)
+        st.markdown(download_pdf(report, f"SEF_{ticker}.pdf"), unsafe_allow_html=True)
+    
+    # الشارت
+    st.line_chart(yf.Ticker(ticker).history(period="6mo")['Close'])
