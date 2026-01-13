@@ -5,117 +5,123 @@ import math
 from fpdf import FPDF
 import base64
 
-# --- Page Configuration ---
+# --- إعدادات الصفحة ---
 st.set_page_config(page_title="SEF Terminal Pro", page_icon="🛡️", layout="wide")
 
-# --- 1. Functions ---
-def get_radar_data(ticker):
+# --- دالة جلب البيانات الحقيقية ---
+def fetch_live_data(ticker_symbol):
     try:
-        data = yf.Ticker(ticker).history(period="1y")
-        if data.empty: return None, None, "Invalid"
-        # التقاط آخر سعر وإغلاق
-        last_price = round(data['Close'].iloc[-1], 2)
-        support = round(data['Low'].tail(20).min(), 2)
-        status = "🛡️ Near Anchor" if last_price < support * 1.05 else "🔥 Breakout"
-        return last_price, support, status
-    except:
-        return None, None, "Error"
+        # إجبار المكتبة على جلب أحدث البيانات دون استخدام الكاش
+        stock = yf.Ticker(ticker_symbol)
+        df = stock.history(period="5d")
+        if df.empty:
+            return None, None, "Invalid Ticker"
+        
+        # جلب سعر الإغلاق الأخير (سعر السوق الحالي)
+        current_mkt_price = round(df['Close'].iloc[-1], 2)
+        # جلب أدنى سعر في آخر 20 يوم تداول كمرساة (Anchor)
+        long_df = stock.history(period="1mo")
+        auto_anchor = round(long_df['Low'].tail(20).min(), 2)
+        
+        status = "🛡️ Near Anchor" if current_mkt_price < auto_anchor * 1.05 else "🔥 Breakout"
+        return current_mkt_price, auto_anchor, status
+    except Exception as e:
+        return None, None, f"Error: {str(e)}"
 
-def generate_sef_full_text(ticker, price, anchor, target, rr, qty, status):
+# --- دالة التقرير الهيكلي SEF ---
+def get_sef_text(ticker, price, anchor, target, rr, qty, status):
     return f"""
 SEF STRATEGIC ANALYSIS REPORT
-Ticker: {ticker} | Price: {price}
+-----------------------------
+Ticker: {ticker} | Live Price: {price}
+Status: {status}
 
-1. Trend / Structure: {status}
-2. Anchor Level (SL): {anchor}
-3. Primary Target: {target}
-4. Risk:Reward: 1:{round(rr, 2)}
-5. Recommended Qty: {qty} Shares
+1. Key Levels:
+- Anchor (Stop Loss): {anchor}
+- Target Price: {target}
+
+2. Execution:
+- Risk:Reward Ratio: 1:{round(rr, 2)}
+- Recommended Quantity: {qty} Shares
 
 "Capital preservation is the first priority."
     """
 
-def download_pdf(content, filename):
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=10)
-        clean_content = content.encode('ascii', 'ignore').decode('ascii')
-        for line in clean_content.split('\n'):
-            pdf.cell(0, 8, txt=line, ln=True)
-        pdf_output = pdf.output(dest='S').encode('latin-1')
-        b64 = base64.b64encode(pdf_output).decode()
-        return f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}" style="background-color: #ff4b4b; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">📥 PDF Report</a>'
-    except: return "Error"
-
-# --- 2. UI Layout ---
+# --- الواجهة البرمجية ---
 st.title("🛡️ SEF Terminal | Professional Hub")
 
-# Sidebar
+# الحقول الجانبية
 balance = st.sidebar.number_input("Portfolio Balance", value=100000)
 risk_pct = st.sidebar.slider("Risk per Trade (%)", 0.5, 5.0, 1.0)
 
-# Initialize Session States if not exist
-if 'price_val' not in st.session_state: st.session_state['price_val'] = 33.90
-if 'anchor_val' not in st.session_state: st.session_state['anchor_val'] = 31.72
-if 'status_val' not in st.session_state: st.session_state['status_val'] = "Forming"
+# تعريف الـ Session State لضمان تحديث الأرقام
+if 'p_val' not in st.session_state: st.session_state['p_val'] = 33.90
+if 'a_val' not in st.session_state: st.session_state['a_val'] = 31.72
+if 's_val' not in st.session_state: st.session_state['s_val'] = "Forming"
 
 st.markdown("---")
 
-# --- ROW 1: Inputs & Buttons ---
+# --- صف المدخلات والأزرار (كلهم جنب بعض) ---
 c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.5])
 
 with c1:
-    ticker = st.text_input("Ticker", "4009.SR").upper()
+    ticker_input = st.text_input("Ticker Symbol", "2222.SR").upper()
 with c2:
-    # ربط الخانة بـ session_state مباشرة
-    curr_p = st.number_input("Price", value=st.session_state['price_val'], key="p_input")
+    # السعر الحالي - يتحدث تلقائياً من الرادار
+    curr_p = st.number_input("Market Price", value=float(st.session_state['p_val']), key="live_p")
 with c3:
-    anc_p = st.number_input("Anchor", value=st.session_state['anchor_val'], key="a_input")
+    # المرساة - تتحدث تلقائياً من الرادار
+    anc_p = st.number_input("Anchor Level", value=float(st.session_state['a_val']), key="live_a")
 with c4:
-    tar_p = st.number_input("Target", value=39.36)
+    tar_p = st.number_input("Target Price", value=39.36)
 with c5:
     st.write("##")
     if st.button("🛰️ Radar", use_container_width=True):
-        new_price, new_support, new_status = get_radar_data(ticker)
-        if new_price:
-            # تحديث القيم في الـ State
-            st.session_state['price_val'] = new_price
-            st.session_state['anchor_val'] = new_support
-            st.session_state['status_val'] = new_status
-            st.rerun() # إعادة التشغيل لتحديث الأرقام في الخانات
+        p, a, s = fetch_live_data(ticker_input)
+        if p:
+            # تحديث القيم فوراً في ذاكرة التطبيق
+            st.session_state['p_val'] = p
+            st.session_state['a_val'] = a
+            st.session_state['s_val'] = s
+            st.rerun() # إعادة تحميل الصفحة لتظهر الأرقام الجديدة (مثل 24.25)
 with c6:
     st.write("##")
-    run_btn = st.button("📊 Analyze", use_container_width=True)
+    analyze_click = st.button("📊 Analyze", use_container_width=True)
 
 st.markdown("---")
 
-# --- 3. Results ---
-if run_btn:
-    # استخدام القيم الحالية من الخانات
-    risk_s = abs(st.session_state.p_input - st.session_state.a_input)
-    rr = (tar_p - st.session_state.p_input) / risk_s if risk_s > 0 else 0
-    qty = math.floor((balance * (risk_pct/100)) / risk_s) if risk_s > 0 else 0
+# --- عرض النتائج والتحليل الهيكلي ---
+if analyze_click:
+    # الحسابات بناءً على ما هو مكتوب حالياً في الخانات
+    risk_amount = balance * (risk_pct / 100)
+    risk_per_share = abs(st.session_state.live_p - st.session_state.live_a)
     
-    # Metrics
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Current Price", st.session_state.p_input)
-    m2.metric("R:R Ratio", f"1:{round(rr, 2)}")
-    m3.metric("Shares", qty)
-    m4.metric("Risk Cash", round(balance * (risk_pct/100), 2))
+    if risk_per_share > 0:
+        rr_ratio = (tar_p - st.session_state.live_p) / risk_per_share
+        shares_qty = math.floor(risk_amount / risk_per_share)
+    else:
+        rr_ratio = 0
+        shares_qty = 0
 
-    # Report
-    st.markdown("---")
-    report = generate_sef_full_text(ticker, st.session_state.p_input, st.session_state.a_input, tar_p, rr, qty, st.session_state['status_val'])
-    st.code(report, language='text')
-    st.markdown(download_pdf(report, f"SEF_{ticker}.pdf"), unsafe_allow_html=True)
+    # عرض البيانات المالية
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric("Live Price", st.session_state.live_p)
+    col_m2.metric("R:R Ratio", f"1:{round(rr_ratio, 2)}")
+    col_m3.metric("Shares", shares_qty)
+    col_m4.metric("Risk Cash", round(risk_amount, 2))
 
-    # Chart
-    hist = yf.Ticker(ticker).history(period="6mo")
-    if not hist.empty:
-        chart_df = hist[['Close']].copy()
-        chart_df['Anchor'] = st.session_state.a_input
-        chart_df['Target'] = tar_p
-        st.line_chart(chart_df)
+    # التقرير الهيكلي SEF
+    st.markdown("### 📄 SEF Structural Analysis")
+    report_text = get_sef_text(ticker_input, st.session_state.live_p, st.session_state.live_a, tar_p, rr_ratio, shares_qty, st.session_state['s_val'])
+    st.code(report_text, language='text')
+
+    # الشارت الفني
+    st.subheader("📈 Technical Chart Overview")
+    hist_data = yf.Ticker(ticker_input).history(period="6mo")
+    if not hist_data.empty:
+        c_df = hist_data[['Close']].copy()
+        c_df['Anchor'] = st.session_state.live_a
+        c_df['Target'] = tar_p
+        st.line_chart(c_df)
     
-    if rr >= 3: st.balloons()
+    if rr_ratio >= 3: st.balloons()
