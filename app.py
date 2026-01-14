@@ -5,20 +5,22 @@ import math
 from fpdf import FPDF
 import base64
 
-# --- 1. إعدادات الصفحة والأيقونة (السطور 20 و21 مدمجة هنا) ---
-icon_url = "https://i.ibb.co/vzR0jXJX/robot-icon.png?v=100"
+# --- 1. إعدادات الصفحة المتقدمة للهوية البصرية ---
+# أضفنا رقم نسخة v=102 لضمان تحديث الأيقونة في ذاكرة الهاتف
+icon_url = "https://i.ibb.co/vzR0jXJX/robot-icon.png?v=102"
 
 st.set_page_config(
-    page_title="SEF Pro v2", 
+    page_title="SEF Terminal Pro", 
     page_icon=icon_url, 
     layout="wide"
 )
 
-# حقن الكود لإجبار الجوال على إظهار الأيقونة (PWA Injection)
+# كود حقن الهوية لضمان ظهور الروبوت كأيقونة تطبيق (PWA)
 st.markdown(f"""
     <head>
         <link rel="apple-touch-icon" href="{icon_url}">
         <link rel="icon" type="image/png" href="{icon_url}">
+        <meta name="mobile-web-app-capable" content="yes">
     </head>
     """, unsafe_allow_html=True)
 
@@ -102,12 +104,12 @@ with c6:
 
 st.markdown("---")
 
-# --- 4. عرض التحليل الذكي (النسب المئوية مدمجة هنا) ---
+# --- 4. عرض التحليل الذكي (مع النسب المئوية المضافة) ---
 if analyze_trigger:
     risk_per_share = abs(p_in - a_in)
     risk_cash = balance * (risk_pct_input / 100)
     
-    # حساب النسب المئوية للمخاطرة والهدف
+    # حساب النسب المئوية للمسافات
     dist_to_sl_pct = (risk_per_share / p_in) * 100 if p_in != 0 else 0
     dist_to_t_pct = ((t_in - p_in) / p_in) * 100 if p_in != 0 else 0
     
@@ -158,4 +160,3 @@ DISCLAIMER: For educational purposes only.
         st.line_chart(c_data, use_container_width=True)
     
     if rr >= 3: st.balloons()
-
