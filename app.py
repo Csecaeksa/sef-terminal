@@ -1,12 +1,9 @@
 import streamlit as st
-import yfinance as yf
-import pandas as pd
-import math
-from fpdf import FPDF
-import base64
+import time
 
-# --- 1. إعدادات الصفحة المتقدمة للهوية البصرية ---
-icon_url = "https://i.ibb.co/vzR0jXJX/robot-icon.png"
+# --- 1. إعدادات الصفحة المتقدمة مع كسر الكاش ---
+# أضفنا رقم عشوائي (v=1) في نهاية الرابط لإجبار المتصفح على تحميل الصورة من جديد
+icon_url = "https://i.ibb.co/vzR0jXJX/robot-icon.png?v=1" 
 
 st.set_page_config(
     page_title="SEF Terminal Pro", 
@@ -14,10 +11,23 @@ st.set_page_config(
     layout="wide"
 )
 
-# كود لإجبار الهاتف على إظهار الأيقونة الخاصة بك بدلاً من شعار Streamlit
+# كود حقن الهوية البصرية بشكل قسري
 st.markdown(f"""
+    <style>
+    /* كود إضافي لإخفاء أي شعارات افتراضية */
+    [data-testid="stSidebarNav"] {{
+        background-image: url({icon_url});
+        background-repeat: no-repeat;
+        padding-top: 80px;
+        background-position: 20px 20px;
+        background-size: 50px 50px;
+    }}
+    </style>
     <head>
         <link rel="apple-touch-icon" href="{icon_url}">
+        <link rel="icon" type="image/png" href="{icon_url}">
+    </head>
+    """, unsafe_allow_html=True)
         <link rel="icon" href="{icon_url}">
     </head>
     """, unsafe_allow_html=True)
@@ -162,3 +172,4 @@ DISCLAIMER: For educational purposes only.
         st.line_chart(c_data, use_container_width=True)
     
     if rr >= 3: st.balloons()
+
