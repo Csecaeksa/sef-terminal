@@ -5,26 +5,40 @@ import math
 from fpdf import FPDF
 import base64
 
-# --- 1. إعدادات الصفحة المتقدمة للهوية البصرية ---
-# أضفنا رقم نسخة v=102 لضمان تحديث الأيقونة في ذاكرة الهاتف
-icon_url = "https://i.ibb.co/vzR0jXJX/robot-icon.png?v=102"
+# --- 1. إعدادات الصفحة ---
+icon_url = "https://i.ibb.co/vzR0jXJX/robot-icon.png"
+st.set_page_config(page_title="SEF Terminal Pro", page_icon=icon_url, layout="wide")
 
-st.set_page_config(
-    page_title="SEF Terminal Pro", 
-    page_icon=icon_url, 
-    layout="wide"
-)
+# --- 2. قاعدة بيانات أسهم تاسي (الرمز والاسم) ---
+tasi_stocks = {
+    "1120.SR": "Al Rajhi Bank (الراجحي)",
+    "1150.SR": "Alinma Bank (الإنماء)",
+    "2222.SR": "Saudi Aramco (أرامكو)",
+    "1180.SR": "SNB (الأهلي)",
+    "7010.SR": "STC (اس تي سي)",
+    "2010.SR": "SABIC (سابك)",
+    "4009.SR": "Saudi German Health (المستشفى السعودي الألماني)",
+    "2310.SR": "Sipchem (سبكيم)",
+    "2020.SR": "SAFCO (سافكو/سابك للمغذيات)",
+    "1060.SR": "SAB (ساب)",
+    "1140.SR": "Bank AlBilad (البلاد)",
+    "2280.SR": "Almarai (المراعي)",
+    "4030.SR": "NSCSA (البحري)",
+    "1211.SR": "Ma'aden (معادن)",
+    "4190.SR": "Jarir (جرير)",
+    "4003.SR": "Extra (إكسترا)",
+    "1111.SR": "Tadawul Group (مجموعة تداول)",
+    "4260.SR": "Budget Saudi (بدجت)",
+    "2080.SR": "Gas & Industrial (الغاز)",
+    "4071.SR": "TADAWUL (تداول)",
+    "1010.SR": "Riyad Bank (بنك الرياض)",
+    "8010.SR": "Bupa Arabia (ببوبا العربية)",
+    "2290.SR": "Yansab (ينساب)",
+    "1301.SR": "PCIG (أسمنت القصيم)",
+    "4013.SR": "Dr. Sulaiman Al-Habib (سليمان الحبيب)"
+}
 
-# كود حقن الهوية لضمان ظهور الروبوت كأيقونة تطبيق (PWA)
-st.markdown(f"""
-    <head>
-        <link rel="apple-touch-icon" href="{icon_url}">
-        <link rel="icon" type="image/png" href="{icon_url}">
-        <meta name="mobile-web-app-capable" content="yes">
-    </head>
-    """, unsafe_allow_html=True)
-
-# --- 2. الدوال الأساسية ---
+# --- 3. الدوال الأساسية ---
 def fetch_live_data(ticker_symbol):
     try:
         stock = yf.Ticker(ticker_symbol)
@@ -46,7 +60,7 @@ def generate_pdf_link(content, ticker):
         pdf.set_font("Arial", size=10)
         pdf.cell(200, 7, txt="Created By Abu Yahia", ln=True, align='L')
         pdf.set_text_color(200, 0, 0)
-        pdf.cell(200, 7, txt="Disclaimer: Educational purposes only. Not financial advice.", ln=True, align='L')
+        pdf.cell(200, 7, txt="Disclaimer: Educational purposes only.", ln=True, align='L')
         pdf.set_text_color(0, 0, 0)
         pdf.ln(10)
         clean_text = content.encode('ascii', 'ignore').decode('ascii')
@@ -57,106 +71,73 @@ def generate_pdf_link(content, ticker):
         return f'<a href="data:application/octet-stream;base64,{b64}" download="SEF_{ticker}_Report.pdf" style="background-color: #ff4b4b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin-top: 10px;">📥 Download PDF Report</a>'
     except: return "⚠️ PDF Error"
 
-# --- 3. واجهة المستخدم ---
-st.title("🛡️ SEF Terminal | Ultimate Hub")
+# --- 4. واجهة المستخدم ---
+st.title("🛡️ SEF Terminal | Abu Yahia")
 
-st.markdown("""
-    <div style='text-align: left; padding-left: 50px; margin-top: -20px;'>
-        <div style='color: #555; font-size: 1.1em; font-weight: bold;'>🖋️ Created By Abu Yahia</div>
-        <div style='color: #cc0000; font-size: 0.85em; margin-top: 5px; line-height: 1.4;'>
-            ⚠️ <b>إخلاء مسؤولية:</b> هذا التطبيق للأغراض التعليمية فقط ولا يعتبر نصيحة مالية.<br>
-            ⚠️ <b>Disclaimer:</b> Educational purposes only. Not financial advice.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-balance = st.sidebar.number_input("Portfolio Balance", value=100000)
-risk_pct_input = st.sidebar.slider("Risk per Trade (%)", 0.5, 5.0, 1.0)
-
+# إدارة الذاكرة
 if 'p_val' not in st.session_state: st.session_state['p_val'] = 33.90
 if 'a_val' not in st.session_state: st.session_state['a_val'] = 31.72
 if 't_val' not in st.session_state: st.session_state['t_val'] = 39.36
 
+balance = st.sidebar.number_input("Portfolio Balance", value=100000)
+risk_pct_input = st.sidebar.slider("Risk per Trade (%)", 0.5, 5.0, 1.0)
+
 st.markdown("---")
 
-c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.5])
+# صف المدخلات مع القائمة المنسدلة الجديدة
+c1, c2, c3, c4, c5, c6 = st.columns([2.0, 1.1, 1.1, 1.1, 1.0, 1.2])
 
 with c1:
-    ticker = st.text_input("Ticker Symbol", "4009.SR").upper()
-with c2:
-    p_in = st.number_input("Market Price", value=float(st.session_state['p_val']), step=0.01)
-with c3:
-    a_in = st.number_input("Anchor Level", value=float(st.session_state['a_val']), step=0.01)
-with c4:
-    t_in = st.number_input("Target Price", value=float(st.session_state['t_val']), step=0.01)
+    # القائمة المنسدلة: تعرض الاسم والرمز، وتخزن الرمز في المتغير ticker
+    selected_display = st.selectbox("Select Saudi Stock", options=list(tasi_stocks.values()))
+    # استخراج الرمز من الاختيار
+    ticker = [k for k, v in tasi_stocks.items() if v == selected_display][0]
+
+with c2: p_in = st.number_input("Price", value=float(st.session_state['p_val']), step=0.01)
+with c3: a_in = st.number_input("Anchor", value=float(st.session_state['a_val']), step=0.01)
+with c4: t_in = st.number_input("Target", value=float(st.session_state['t_val']), step=0.01)
 with c5:
     st.write("##")
     if st.button("🛰️ Radar", use_container_width=True):
         p, a, t = fetch_live_data(ticker)
         if p:
-            st.session_state['p_val'] = p
-            st.session_state['a_val'] = a
-            st.session_state['t_val'] = t
+            st.session_state.update({'p_val': p, 'a_val': a, 't_val': t})
             st.rerun()
 with c6:
     st.write("##")
     analyze_trigger = st.button("📊 Analyze", use_container_width=True)
 
-st.markdown("---")
-
-# --- 4. عرض التحليل الذكي (مع النسب المئوية المضافة) ---
+# --- 5. الحسابات والتقرير ---
 if analyze_trigger:
     risk_per_share = abs(p_in - a_in)
     risk_cash = balance * (risk_pct_input / 100)
     
-    # حساب النسب المئوية للمسافات
     dist_to_sl_pct = (risk_per_share / p_in) * 100 if p_in != 0 else 0
     dist_to_t_pct = ((t_in - p_in) / p_in) * 100 if p_in != 0 else 0
     
-    if risk_per_share > 0:
-        rr = (t_in - p_in) / risk_per_share
-        qty = math.floor(risk_cash / risk_per_share)
-    else: rr, qty = 0, 0
-
-    if rr >= 3: rr_advice = "🟢 EXCELLENT (Professional Grade)"
-    elif 2 <= rr < 3: rr_advice = "🟡 GOOD (Acceptable Trade)"
-    else: rr_advice = "🔴 DANGEROUS (Avoid - Poor Reward)"
+    rr = (t_in - p_in) / risk_per_share if risk_per_share > 0 else 0
+    qty = math.floor(risk_cash / risk_per_share) if risk_per_share > 0 else 0
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Live Price", p_in)
+    m1.metric("Price", p_in)
     m2.metric("R:R Ratio", f"1:{round(rr, 2)}")
     m3.metric("Shares", qty)
-    m4.metric("Risk Cash", f"{round(risk_cash, 2)}")
+    m4.metric("Risk Cash", round(risk_cash, 2))
 
     full_report = f"""
-SEF STRATEGIC ANALYSIS REPORT
-🖋️ Created By Abu Yahia
+SEF ANALYSIS REPORT | Abu Yahia
 ------------------------------------
-Ticker: {ticker} | Price: {p_in}
+Stock: {selected_display}
+Ticker: {ticker}
 1. LEVELS:
-- Entry: {p_in} | Anchor (SL): {a_in} | Target: {t_in}
-
+- Entry: {p_in} | SL: {a_in} | Target: {t_in}
 2. METRICS:
 - R:R Ratio: 1:{round(rr, 2)}
 - Quantity: {qty} Shares | Risk: {round(risk_cash, 2)}
 - Risk to SL: -{round(dist_to_sl_pct, 2)}%
 - Reward to Target: +{round(dist_to_t_pct, 2)}%
-
-RESULT: {rr_advice}
 ------------------------------------
-DISCLAIMER: For educational purposes only.
-"Capital preservation is the first priority."
     """
-    st.markdown("### 📄 SEF Structural Analysis")
-    st.code(full_report, language='text')
+    st.code(full_report)
     st.markdown(generate_pdf_link(full_report, ticker), unsafe_allow_html=True)
-
-    hist = yf.Ticker(ticker).history(period="1y")
-    if not hist.empty:
-        c_data = hist[['Close']].copy()
-        c_data['Anchor'] = a_in
-        c_data['Target'] = t_in
-        c_data['EMA_200'] = c_data['Close'].ewm(span=200, adjust=False).mean()
-        st.line_chart(c_data, use_container_width=True)
-    
-    if rr >= 3: st.balloons()
+    st.line_chart(yf.Ticker(ticker).history(period="1y")['Close'], use_container_width=True)
