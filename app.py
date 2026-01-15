@@ -31,7 +31,7 @@ if 'price' not in st.session_state:
     })
 
 # --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | STRICT COLOR MODE")
+st.title("🛡️ SEF Terminal Pro | Abu Yahia")
 
 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
 
@@ -68,9 +68,9 @@ with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. Technical Indicators (MANUAL HTML COLORING) ---
+# --- 6. Technical Indicators (Clean Design) ---
 if st.session_state['ready']:
-    st.subheader("📊 Technical Indicators (Manual Color Override)")
+    st.subheader("📊 Technical Indicators")
     m_cols = st.columns(3)
     ma_list = [
         ("SMA 50", st.session_state['sma50']),
@@ -80,15 +80,15 @@ if st.session_state['ready']:
     
     for i, (label, val) in enumerate(ma_list):
         diff = st.session_state['price'] - val
-        # تحديد اللون يدوياً
-        color = "#FF4B4B" if diff < 0 else "#09AB3B" # أحمر للسلبي وأخضر للإيجابي
+        # اللون الأحمر الصارم للقيم السالبة
+        color = "#FF4B4B" if diff < 0 else "#09AB3B" 
         direction = "↓" if diff < 0 else "↑"
         
-        # حقن HTML لعرض الأرقام بالألوان الصحيحة غصب عن المتصفح
+        # تصميم البطاقات بلون الحدود الجانبية المتغير حسب الحالة
         m_cols[i].markdown(f"""
-            <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid {color};">
-                <p style="margin:0; font-size:14px; color:#555;">{label}</p>
-                <h2 style="margin:0; color:#31333F;">{val:.2f}</h2>
+            <div style="background-color: #f8f9fb; padding: 20px; border-radius: 10px; border-left: 6px solid {color}; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+                <p style="margin:0; font-size:15px; color:#5c5c5c; font-weight:bold;">{label}</p>
+                <h2 style="margin:0; color:#31333F; font-size:28px;">{val:.2f}</h2>
                 <p style="margin:0; font-size:18px; color:{color}; font-weight:bold;">
                     {direction} {abs(diff):.2f} SAR
                 </p>
@@ -108,3 +108,4 @@ if analyze_btn:
     plot_df['Support'] = st.session_state['stop']
     
     st.line_chart(plot_df)
+    st.info(f"The 'Support' line is based on the 20-day low: {st.session_state['stop']:.2f}")
