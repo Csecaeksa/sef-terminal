@@ -6,7 +6,7 @@ import math
 # --- 1. Page Configuration ---
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 
-# --- 2. Load Data from TASI.csv (262 Companies) ---
+# --- 2. Load Data from TASI.csv ---
 @st.cache_data
 def load_tasi_data():
     try:
@@ -14,7 +14,6 @@ def load_tasi_data():
         df.columns = [c.strip() for c in df.columns]
         df['Ticker'] = df['Ticker'].astype(str).str.strip()
         df['Name_Ar'] = df['Company Name (Arabic)'].astype(str).str.strip()
-        # Combine Name and Ticker for the dropdown
         df['Display'] = df['Name_Ar'] + " | " + df['Ticker']
         mapping = dict(zip(df['Display'], df['Ticker']))
         return sorted(list(mapping.keys())), mapping
@@ -33,8 +32,8 @@ if 'price' not in st.session_state:
     })
 
 # --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | Abu Yahia Edition")
-st.write(f"Active Stocks: **{len(options)}**")
+st.title("🛡️ SEF Terminal Pro | Visual Technical Edition")
+st.write(f"Active Stocks: **{len(options)}** | User: Abu Yahia")
 
 st.markdown("---")
 
@@ -45,27 +44,22 @@ with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
 
-with c2: p_in = st.number_input("Current Price", value=float(st.session_state['price']), format="%.2f")
+with c2: p_in = st.number_input("Price", value=float(st.session_state['price']), format="%.2f")
 with c3: s_in = st.number_input("Stop Loss", value=float(st.session_state['stop']), format="%.2f")
 with c4: t_in = st.number_input("Target", value=float(st.session_state['target']), format="%.2f")
 
-# --- 5. Radar Button Logic ---
+# --- 5. Radar Logic ---
 with c5:
     st.write("##")
     if st.button("🛰️ RADAR", use_container_width=True):
         try:
-            # Download 2 years of data for SMA 200
             raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
             if not raw.empty:
-                # Fix Multi-index issue
-                if isinstance(raw.columns, pd.MultiIndex):
-                    raw.columns = raw.columns.get_level_values(0)
+                if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
                 
                 close = raw['Close']
-                current = float(close.iloc[-1])
-                
                 st.session_state.update({
-                    'price': current,
+                    'price': float(close.iloc[-1]),
                     'stop': float(raw['Low'].tail(20).min()),
                     'target': float(raw['High'].tail(20).max()),
                     'sma50': float(close.rolling(50).mean().iloc[-1]),
@@ -81,43 +75,40 @@ with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. Display Technical Indicators (SMA) ---
+# --- 6. SMA Metrics Display ---
 if st.session_state['ready']:
-    st.subheader("📈 Moving Averages (SMA)")
+    st.subheader("📈 Technical Indicators")
     m_cols = st.columns(3)
-    
-    ma_data = [
-        ("SMA 50", st.session_state['sma50']),
-        ("SMA 100", st.session_state['sma100']),
-        ("SMA 200", st.session_state['sma200'])
-    ]
-    
+    ma_data = [("SMA 50", st.session_state['sma50']), ("SMA 100", st.session_state['sma100']), ("SMA 200", st.session_state['sma200'])]
     for i, (label, val) in enumerate(ma_data):
         diff = st.session_state['price'] - val
-        # Green if price is above MA
-        color = "normal" if diff >= 0 else "inverse"
-        m_cols[i].metric(label, f"{val:.2f}", delta=f"{diff:.2f} SAR", delta_color=color)
+        m_cols[i].metric(label, f"{val:.2f}", delta=f"{diff:.2f} SAR", delta_color="normal" if diff >= 0 else "inverse")
 
-# --- 7. Risk Management & Chart ---
+# --- 7. Analysis & Visual Challenge ---
 if analyze_btn:
-    risk_amount = abs(p_in - s_in)
-    if risk_amount > 0:
-        balance = st.sidebar.number_input("Portfolio Balance", value=100000)
-        risk_pct = st.sidebar.slider("Risk per Trade %", 0.5, 5.0, 1.0)
-        
-        # Calculations
-        shares = math.floor((balance * (risk_pct/100)) / risk_amount)
-        rr_ratio = (t_in - p_in) / risk_amount
+    risk_amt = abs(p_in - s_in)
+    if risk_amt > 0:
+        balance = st.sidebar.number_input("Portfolio", value=100000)
+        risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
+        shares = math.floor((balance * (risk_pct/100)) / risk_amt)
         
         st.markdown("---")
-        st.success(f"Analysis for: {selected_stock}")
-        r_cols = st.columns(3)
-        r_cols[0].metric("Shares to Buy", f"{shares} Qty")
-        r_cols[1].metric("Stop Loss %", f"-{round((risk_amount/p_in)*100, 2)}%")
-        r_cols[2].metric("Reward/Risk", f"1:{round(rr_ratio, 2)}")
+        st.success(f"Strategy for: {selected_stock}")
+        res_cols = st.columns(3)
+        res_cols[0].metric("Shares", f"{shares}")
+        res_cols[1].metric("Stop %", f"-{round((risk_amt/p_in)*100, 2)}%")
+        res_cols[2].metric("R:R Ratio", f"1:{round((t_in - p_in) / risk_amt, 2)}")
 
-        # Clean Chart for Display
-        chart_df = yf.download(f"{symbol}.SR", period="1y", progress=False)
-        if isinstance(chart_df.columns, pd.MultiIndex): 
-            chart_df.columns = chart_df.columns.get_level_values(0)
-        st.line_chart(chart_df['Close'])
+        # --- Plotting Price + MAs ---
+        st.subheader("Price & Moving Averages Chart")
+        chart_raw = yf.download(f"{symbol}.SR", period="1y", progress=False)
+        if isinstance(chart_raw.columns, pd.MultiIndex): chart_raw.columns = chart_raw.columns.get_level_values(0)
+        
+        # Prepare Chart Data
+        plot_df = chart_raw[['Close']].copy()
+        plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
+        plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
+        plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
+        
+        # Display the multi-line chart
+        st.line_chart(plot_df)
