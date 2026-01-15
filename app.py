@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import math
+from fpdf import FPDF # مكتبة توليد الـ PDF
 
 # --- 1. Page Config ---
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
@@ -30,7 +31,7 @@ if 'ready' not in st.session_state:
     })
 
 # --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | Full Strategy Mode")
+st.title("🛡️ SEF Terminal Pro | PDF Enabled")
 
 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
 
@@ -65,12 +66,11 @@ with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. Technical Indicators Section (The Fix for Red/Green) ---
+# --- 6. Technical Indicators ---
 if st.session_state['ready']:
     st.subheader("📈 Technical Indicators")
     m_cols = st.columns(3)
     ma_list = [("SMA 50", st.session_state['sma50']), ("SMA 100", st.session_state['sma100']), ("SMA 200", st.session_state['sma200'])]
-    
     for i, (label, val) in enumerate(ma_list):
         diff = st.session_state['price'] - val
         color = "#FF4B4B" if diff < 0 else "#09AB3B"
@@ -82,7 +82,7 @@ if st.session_state['ready']:
             </div>
         """, unsafe_allow_html=True)
 
-# --- 7. Structural Analysis Section (Re-added based on your image) ---
+# --- 7. Structural Analysis & PDF ---
 if analyze_btn or st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -91,22 +91,21 @@ if analyze_btn or st.session_state['ready']:
     risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
     shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
 
-    # Top Row Metrics (Live Price, R:R, etc.)
     t_cols = st.columns(4)
     t_cols[0].metric("Live Price", f"{p_in}")
     t_cols[1].metric("R:R Ratio", f"1:{round(rr_ratio, 2)}")
     t_cols[2].metric("Shares", f"{shares}")
     t_cols[3].metric("Risk Cash", f"{balance * (risk_pct/100)}")
 
-    # SEF Structural Analysis Report
     st.subheader("📄 SEF Structural Analysis")
-    result_status = "🔴 DANGEROUS (Avoid - Poor Reward)" if rr_ratio < 2 else "🟢 VALID (Good Risk/Reward)"
+    result_status = "DANGEROUS (Avoid - Poor Reward)" if rr_ratio < 2 else "VALID (Good Risk/Reward)"
     
     report_text = f"""
     SEF STRATEGIC ANALYSIS REPORT
-    🖊️ Created By Abu Yahia
+    Created By Abu Yahia
     ------------------------------
     Ticker: {symbol}.SR | Price: {p_in}
+    
     1. LEVELS:
     - Entry: {p_in} | Anchor (SL): {s_in} | Target: {t_in}
 
@@ -120,6 +119,24 @@ if analyze_btn or st.session_state['ready']:
     """
     st.code(report_text, language="text")
 
+    # --- PDF GENERATION LOGIC ---
+    def create_pdf(content):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        for line in content.split('\n'):
+            pdf.cell(200, 10, txt=line, ln=True, align='L')
+        return pdf.output(dest='S').encode('latin-1')
+
+    pdf_data = create_pdf(report_text)
+    
+    st.download_button(
+        label="📥 Download PDF Report",
+        data=pdf_data,
+        file_name=f"SEF_Report_{symbol}.pdf",
+        mime="application/pdf"
+    )
+
     # Chart
     chart_raw = yf.download(f"{symbol}.SR", period="1y", progress=False)
     if isinstance(chart_raw.columns, pd.MultiIndex): chart_raw.columns = chart_raw.columns.get_level_values(0)
@@ -127,8 +144,5 @@ if analyze_btn or st.session_state['ready']:
     plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
     plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
     plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
-    plot_df['Support'] = s_in
+    plot_df['StopLoss'] = s_in
     st.line_chart(plot_df)
-
-    # Download PDF Button Placeholder
-    st.button("📥 Download PDF Report", type="primary")
