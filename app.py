@@ -30,10 +30,11 @@ if 'ready' not in st.session_state:
         'low52': 0.0, 'high52': 0.0, 'ready': False
     })
 
-# --- 4. UI Layout ---
-st.title("🛡️ SEF Terminal Pro | Final Benchmark")
+# --- 4. Main UI Layout ---
+st.title("🛡️ SEF Terminal Pro | Abu Yahia Edition")
 
 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
+
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
@@ -66,7 +67,7 @@ with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. Technical Indicators & Visual Range Bar ---
+# --- 6. Technical Indicators & Price Range Bar ---
 if st.session_state['ready']:
     st.subheader("📈 Technical Indicators")
     m_cols = st.columns(3)
@@ -84,29 +85,29 @@ if st.session_state['ready']:
             </div>
         """, unsafe_allow_html=True)
 
-    # شريط النطاق السعري البصري
+    # Visual Range Bar
     st.write("##")
     st.write("**Yearly Price Range (52W)**")
     low, high = st.session_state['low52'], st.session_state['high52']
     range_pct = ((p_in - low) / (high - low)) * 100 if (high - low) != 0 else 0
     st.markdown(f"""
         <div style="width: 100%; background-color: #e0e0e0; border-radius: 5px; height: 12px; position: relative;">
-            <div style="width: 5px; height: 20px; background-color: #4A90E2; position: absolute; left: {min(max(range_pct, 0), 100)}%; top: -4px; border-radius: 2px;"></div>
+            <div style="width: 6px; height: 22px; background-color: #4A90E2; position: absolute; left: {min(max(range_pct, 0), 100)}%; top: -5px; border-radius: 2px; border: 1px solid white;"></div>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 5px; color: #555;">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 8px; color: #444; font-weight: bold;">
             <span>{low:.2f} (Low)</span>
-            <span>Current: {p_in:.2f}</span>
+            <span style="color: #4A90E2;">Current: {p_in:.2f}</span>
             <span>{high:.2f} (High)</span>
         </div>
     """, unsafe_allow_html=True)
 
-# --- 7. Structural Analysis & PDF ---
+# --- 7. Structural Analysis & PDF Export ---
 if analyze_btn or st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
     rr_ratio = (t_in - p_in) / risk_amt if risk_amt > 0 else 0
-    balance = st.sidebar.number_input("Portfolio", value=100000)
-    risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
+    balance = st.sidebar.number_input("Portfolio Balance", value=100000)
+    risk_pct = st.sidebar.slider("Risk per Trade %", 0.5, 5.0, 1.0)
     shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
 
     t_cols = st.columns(4)
@@ -117,7 +118,6 @@ if analyze_btn or st.session_state['ready']:
 
     st.subheader("📄 SEF Structural Analysis")
     
-    # حساب المسافات للتقرير
     p50 = ((p_in - st.session_state['sma50']) / st.session_state['sma50']) * 100
     p100 = ((p_in - st.session_state['sma100']) / st.session_state['sma100']) * 100
     p200 = ((p_in - st.session_state['sma200']) / st.session_state['sma200']) * 100
@@ -129,30 +129,45 @@ if analyze_btn or st.session_state['ready']:
     Ticker: {symbol}.SR | Price: {p_in:.2f}
     
     1. LEVELS:
-    - Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}
+    - Entry Point : {p_in:.2f}
+    - Anchor (SL) : {s_in:.2f}
+    - Target Level: {t_in:.2f}
 
-    2. TECHNICALS (MAs & Distance):
-    - SMA 50 : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)
-    - SMA 100: {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)
-    - SMA 200: {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)
+    2. TECHNICAL INDICATORS (Distance %):
+    - SMA 50  : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)
+    - SMA 100 : {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)
+    - SMA 200 : {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)
 
-    3. METRICS:
-    - R:R Ratio: 1:{round(rr_ratio, 2)} | Quantity: {shares}
+    3. STRATEGY METRICS:
+    - Risk/Reward Ratio: 1:{round(rr_ratio, 2)}
+    - Position Sizing : {shares} Shares
+    - Risk Amount     : {balance * (risk_pct/100):.2f}
     
     ------------------------------
-    This content is for informational purposes only and not investment advice.
+    Disclaimer: This content is for informational purposes only 
+    and not investment advice.
     "Capital preservation is the first priority."
     """
     st.code(report_text, language="text")
 
-    # PDF Generation
     def create_pdf(content):
-        pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=11)
-        for line in content.split('\n'): pdf.cell(200, 8, txt=line, ln=True, align='L')
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(200, 10, txt="SEF STRATEGIC ANALYSIS REPORT", ln=True, align='C')
+        pdf.set_font("Arial", size=11)
+        pdf.ln(10)
+        for line in content.split('\n'):
+            pdf.cell(0, 8, txt=line, ln=True, align='L')
         return pdf.output(dest='S').encode('latin-1')
 
-    st.download_button("📥 Download PDF Report", data=create_pdf(report_text), file_name=f"SEF_{symbol}.pdf")
+    st.download_button(
+        label="📥 Download PDF Report",
+        data=create_pdf(report_text),
+        file_name=f"SEF_Report_{symbol}.pdf",
+        mime="application/pdf",
+        type="primary"
+    )
 
-    # Chart & Footer Disclaimer
     st.line_chart(yf.download(f"{symbol}.SR", period="1y", progress=False)['Close'])
-    st.markdown("<br><p style='text-align: center; color: gray; font-size: 12px;'>This content is for informational purposes only and not investment advice.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #888; font-size: 13px;'>This content is for informational purposes only and not investment advice.</p>", unsafe_allow_html=True)
