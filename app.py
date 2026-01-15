@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import math
-from fpdf import FPDF # مكتبة توليد الـ PDF
+from fpdf import FPDF
 
 # --- 1. Page Config ---
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
@@ -31,7 +31,7 @@ if 'ready' not in st.session_state:
     })
 
 # --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | PDF Enabled")
+st.title("🛡️ SEF Terminal Pro | Abu Yahia")
 
 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
 
@@ -92,26 +92,32 @@ if analyze_btn or st.session_state['ready']:
     shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
 
     t_cols = st.columns(4)
-    t_cols[0].metric("Live Price", f"{p_in}")
+    t_cols[0].metric("Live Price", f"{p_in:.2f}") # تقريب السعر لـ 2 digits
     t_cols[1].metric("R:R Ratio", f"1:{round(rr_ratio, 2)}")
     t_cols[2].metric("Shares", f"{shares}")
-    t_cols[3].metric("Risk Cash", f"{balance * (risk_pct/100)}")
+    t_cols[3].metric("Risk Cash", f"{balance * (risk_pct/100):.2f}")
 
     st.subheader("📄 SEF Structural Analysis")
     result_status = "DANGEROUS (Avoid - Poor Reward)" if rr_ratio < 2 else "VALID (Good Risk/Reward)"
     
+    # صياغة التقرير مع إضافة المتوسطات وتقريب السعر
     report_text = f"""
     SEF STRATEGIC ANALYSIS REPORT
     Created By Abu Yahia
     ------------------------------
-    Ticker: {symbol}.SR | Price: {p_in}
+    Ticker: {symbol}.SR | Price: {p_in:.2f}
     
     1. LEVELS:
-    - Entry: {p_in} | Anchor (SL): {s_in} | Target: {t_in}
+    - Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}
 
-    2. METRICS:
+    2. TECHNICALS (MAs):
+    - SMA 50: {st.session_state['sma50']:.2f}
+    - SMA 100: {st.session_state['sma100']:.2f}
+    - SMA 200: {st.session_state['sma200']:.2f}
+
+    3. METRICS:
     - R:R Ratio: 1:{round(rr_ratio, 2)}
-    - Quantity: {shares} Shares | Risk: {balance * (risk_pct/100)}
+    - Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
 
     RESULT: {result_status}
     ------------------------------
@@ -119,13 +125,13 @@ if analyze_btn or st.session_state['ready']:
     """
     st.code(report_text, language="text")
 
-    # --- PDF GENERATION LOGIC ---
+    # PDF Generation
     def create_pdf(content):
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", size=12)
+        pdf.set_font("Arial", size=11)
         for line in content.split('\n'):
-            pdf.cell(200, 10, txt=line, ln=True, align='L')
+            pdf.cell(200, 8, txt=line, ln=True, align='L')
         return pdf.output(dest='S').encode('latin-1')
 
     pdf_data = create_pdf(report_text)
