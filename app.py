@@ -32,7 +32,7 @@ if 'price' not in st.session_state:
     })
 
 # --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | Abu Yahia Edition")
+st.title("🛡️ SEF Terminal Pro | Final Control")
 st.write(f"Active Stocks: **{len(options)}**")
 
 st.markdown("---")
@@ -75,7 +75,7 @@ with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. SMA Metrics Display (Fixed Colors) ---
+# --- 6. SMA Metrics Display (STRICT RED/GREEN COLOR) ---
 if st.session_state['ready']:
     st.subheader("📈 Technical Indicators")
     m_cols = st.columns(3)
@@ -83,11 +83,17 @@ if st.session_state['ready']:
     
     for i, (label, val) in enumerate(ma_data):
         diff = st.session_state['price'] - val
-        # التحقق من اللون: إذا الفرق سالب، اللون أحمر (inverse)، إذا موجب أخضر (normal)
-        ma_color = "inverse" if diff < 0 else "normal"
-        m_cols[i].metric(label, f"{val:.2f}", delta=f"{diff:.2f} SAR", delta_color=ma_color)
+        # Strict logic: price < MA = RED (inverse) | price > MA = GREEN (normal)
+        color_logic = "inverse" if diff < 0 else "normal"
+        
+        m_cols[i].metric(
+            label=label, 
+            value=f"{val:.2f}", 
+            delta=f"{diff:.2f} SAR", 
+            delta_color=color_logic
+        )
 
-# --- 7. Analysis & Enhanced Chart ---
+# --- 7. Analysis & Charting with Support Line ---
 if analyze_btn:
     risk_amt = abs(p_in - s_in)
     if risk_amt > 0:
@@ -112,8 +118,8 @@ if analyze_btn:
         plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
         plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
         
-        # إضافة خط الدعم السابق (أدنى سعر في شهر) كخط ثابت على الشارت
-        plot_df['Prev_Support'] = st.session_state['stop']
+        # Add Horizontal Support Line
+        plot_df['Support_Level'] = st.session_state['stop']
         
         st.line_chart(plot_df)
-        st.caption(f"Note: The straight line represents 'Previous Support' at {st.session_state['stop']:.2f} SAR")
+        st.info(f"The 'Support_Level' line is set at: {st.session_state['stop']:.2f} SAR (20-day Low)")
