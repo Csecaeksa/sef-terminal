@@ -18,7 +18,7 @@ def load_tasi_data():
         mapping = dict(zip(df['Display'], df['Ticker']))
         return sorted(list(mapping.keys())), mapping
     except Exception as e:
-        st.error(f"Error loading TASI.csv: {e}")
+        st.error(f"Error: {e}")
         return [], {}
 
 options, tasi_mapping = load_tasi_data()
@@ -27,17 +27,13 @@ options, tasi_mapping = load_tasi_data()
 if 'price' not in st.session_state:
     st.session_state.update({
         'price': 0.0, 'stop': 0.0, 'target': 0.0,
-        'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0,
-        'ready': False
+        'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0, 'ready': False
     })
 
-# --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | Final Control")
-st.write(f"Active Stocks: **{len(options)}**")
-
+# --- 4. UI Layout ---
+st.title("🛡️ SEF Terminal Pro | Fixed Visuals")
 st.markdown("---")
 
-# Input Row
 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
 
 with c1:
@@ -48,7 +44,7 @@ with c2: p_in = st.number_input("Price", value=float(st.session_state['price']),
 with c3: s_in = st.number_input("Stop Loss", value=float(st.session_state['stop']), format="%.2f")
 with c4: t_in = st.number_input("Target", value=float(st.session_state['target']), format="%.2f")
 
-# --- 5. Radar Logic ---
+# --- 5. Radar Button ---
 with c5:
     st.write("##")
     if st.button("🛰️ RADAR", use_container_width=True):
@@ -56,7 +52,6 @@ with c5:
             raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
             if not raw.empty:
                 if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
-                
                 close = raw['Close']
                 st.session_state.update({
                     'price': float(close.iloc[-1]),
@@ -68,48 +63,37 @@ with c5:
                     'ready': True
                 })
                 st.rerun()
-        except Exception as e:
-            st.error(f"Radar Error: {e}")
+        except Exception as e: st.error(f"Error: {e}")
 
 with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. SMA Metrics Display (STRICT RED/GREEN COLOR) ---
+# --- 6. Technical Indicators (STRICT COLOR LOGIC) ---
 if st.session_state['ready']:
-    st.subheader("📈 Technical Indicators")
+    st.subheader("📊 Technical Indicators")
     m_cols = st.columns(3)
-    ma_data = [("SMA 50", st.session_state['sma50']), ("SMA 100", st.session_state['sma100']), ("SMA 200", st.session_state['sma200'])]
+    ma_data = [("SMA 50", st.session_state['sma50']), 
+               ("SMA 100", st.session_state['sma100']), 
+               ("SMA 200", st.session_state['sma200'])]
     
     for i, (label, val) in enumerate(ma_data):
         diff = st.session_state['price'] - val
-        # Strict logic: price < MA = RED (inverse) | price > MA = GREEN (normal)
-        color_logic = "inverse" if diff < 0 else "normal"
+        # الهلال الأحمر هنا: نجبره يصير أحمر إذا كان تحت المتوسط
+        # delta_color="inverse" تجعل السالب أحمر والموجب أخضر
+        st_color = "inverse" if diff < 0 else "normal"
         
-        m_cols[i].metric(
-            label=label, 
-            value=f"{val:.2f}", 
-            delta=f"{diff:.2f} SAR", 
-            delta_color=color_logic
-        )
+        m_cols[i].metric(label, f"{val:.2f}", delta=f"{diff:.2f} SAR", delta_color=st_color)
 
-# --- 7. Analysis & Charting with Support Line ---
+# --- 7. Chart with Support Line ---
 if analyze_btn:
     risk_amt = abs(p_in - s_in)
     if risk_amt > 0:
-        balance = st.sidebar.number_input("Portfolio", value=100000)
-        risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
-        shares = math.floor((balance * (risk_pct/100)) / risk_amt)
-        
+        shares = math.floor((1000 * 1.0) / risk_amt) # Placeholder calculation
         st.markdown("---")
         st.success(f"Strategy for: {selected_stock}")
-        res_cols = st.columns(3)
-        res_cols[0].metric("Shares", f"{shares}")
-        res_cols[1].metric("Stop %", f"-{round((risk_amt/p_in)*100, 2)}%")
-        res_cols[2].metric("R:R Ratio", f"1:{round((t_in - p_in) / risk_amt, 2)}")
-
-        # --- Chart with Support Line ---
-        st.subheader("Chart: Price, MAs & Previous Support")
+        
+        # Financial Chart
         chart_raw = yf.download(f"{symbol}.SR", period="1y", progress=False)
         if isinstance(chart_raw.columns, pd.MultiIndex): chart_raw.columns = chart_raw.columns.get_level_values(0)
         
@@ -117,9 +101,6 @@ if analyze_btn:
         plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
         plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
         plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
-        
-        # Add Horizontal Support Line
-        plot_df['Support_Level'] = st.session_state['stop']
+        plot_df['Support'] = st.session_state['stop'] # خط الدعم الأفقي
         
         st.line_chart(plot_df)
-        st.info(f"The 'Support_Level' line is set at: {st.session_state['stop']:.2f} SAR (20-day Low)")
