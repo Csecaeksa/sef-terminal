@@ -3,10 +3,10 @@ import pandas as pd
 import yfinance as yf
 import math
 
-# --- 1. Page Configuration ---
+# --- 1. Page Config ---
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 
-# --- 2. Load Data from TASI.csv ---
+# --- 2. Load TASI Data ---
 @st.cache_data
 def load_tasi_data():
     try:
@@ -23,7 +23,7 @@ def load_tasi_data():
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 3. Initialize Session State ---
+# --- 3. Session State ---
 if 'price' not in st.session_state:
     st.session_state.update({
         'price': 0.0, 'stop': 0.0, 'target': 0.0,
@@ -31,7 +31,7 @@ if 'price' not in st.session_state:
     })
 
 # --- 4. Main UI ---
-st.title("🛡️ SEF Terminal Pro | Strict Color Control")
+st.title("🛡️ SEF Terminal Pro | STRICT COLOR MODE")
 
 c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
 
@@ -68,34 +68,34 @@ with c6:
     st.write("##")
     analyze_btn = st.button("📊 ANALYZE", use_container_width=True)
 
-# --- 6. Technical Indicators (THE SECRET FIX) ---
+# --- 6. Technical Indicators (MANUAL HTML COLORING) ---
 if st.session_state['ready']:
-    st.subheader("📊 Technical Indicators")
+    st.subheader("📊 Technical Indicators (Manual Color Override)")
     m_cols = st.columns(3)
-    ma_data = [
-        ("SMA 50", st.session_state['sma50']), 
-        ("SMA 100", st.session_state['sma100']), 
+    ma_list = [
+        ("SMA 50", st.session_state['sma50']),
+        ("SMA 100", st.session_state['sma100']),
         ("SMA 200", st.session_state['sma200'])
     ]
     
-    for i, (label, val) in enumerate(ma_data):
+    for i, (label, val) in enumerate(ma_list):
         diff = st.session_state['price'] - val
+        # تحديد اللون يدوياً
+        color = "#FF4B4B" if diff < 0 else "#09AB3B" # أحمر للسلبي وأخضر للإيجابي
+        direction = "↓" if diff < 0 else "↑"
         
-        # اللعبة هنا يا أبو يحيى:
-        # إذا كان السعر تحت المتوسط (diff سالب) -> نستخدم "normal" لكن الرقم أصلاً سالب، فالمكتبة راح تخليه أحمر.
-        # إذا كان السعر فوق المتوسط (diff موجب) -> نستخدم "normal" فيطلع أخضر.
-        # ملاحظة: بعض إصدارات Streamlit تعكس، لذا استخدمت الشرط التالي للتحكم المطلق:
-        
-        st_color = "normal" if diff >= 0 else "inverse"
-        
-        m_cols[i].metric(
-            label=label, 
-            value=f"{val:.2f}", 
-            delta=f"{diff:.2f} SAR", 
-            delta_color=st_color
-        )
+        # حقن HTML لعرض الأرقام بالألوان الصحيحة غصب عن المتصفح
+        m_cols[i].markdown(f"""
+            <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid {color};">
+                <p style="margin:0; font-size:14px; color:#555;">{label}</p>
+                <h2 style="margin:0; color:#31333F;">{val:.2f}</h2>
+                <p style="margin:0; font-size:18px; color:{color}; font-weight:bold;">
+                    {direction} {abs(diff):.2f} SAR
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
 
-# --- 7. Chart with Support Line ---
+# --- 7. Chart Section ---
 if analyze_btn:
     st.markdown("---")
     chart_raw = yf.download(f"{symbol}.SR", period="1y", progress=False)
@@ -105,6 +105,6 @@ if analyze_btn:
     plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
     plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
     plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
-    plot_df['Support'] = st.session_state['stop'] # خط الدعم
+    plot_df['Support'] = st.session_state['stop']
     
     st.line_chart(plot_df)
