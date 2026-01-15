@@ -30,10 +30,10 @@ if 'ready' not in st.session_state:
         'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0, 'ready': False
     })
 
-# --- 4. Main UI (تعديل العنوان فقط بناءً على طلبك) ---
+# --- 4. Main UI (تعديل العنوان والاسم وإخلاء المسؤولية فقط) ---
 col_logo, col_title = st.columns([1, 8])
 with col_logo:
-    # وضع أيقونة الروبوت التي اخترتها
+    # أيقونة الروبوت
     st.image("https://r.jina.ai/i/053b93f7762649b3806a642921578334", width=100)
 with col_title:
     st.title("ChartFund Pro")
@@ -155,6 +155,7 @@ if analyze_btn or st.session_state['ready']:
         mime="application/pdf"
     )
 
+    # إعادة الشارت الأصلي كما في نسختك
     chart_raw = yf.download(f"{symbol}.SR", period="1y", progress=False)
     if isinstance(chart_raw.columns, pd.MultiIndex): chart_raw.columns = chart_raw.columns.get_level_values(0)
     plot_df = chart_raw[['Close']].copy()
