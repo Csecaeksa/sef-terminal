@@ -8,19 +8,19 @@ from fpdf import FPDF
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 st.markdown("<style>.stAppToolbar {display: none;}</style>", unsafe_allow_html=True)
 
-# --- 2. Data Logic ---
-# Note: For full auto-save on Cloud, you need Google Service Account.
-# This version loads from your link.
+# --- 2. Google Sheets Connection (Read Only) ---
 SHEET_ID = "18TzVTveneHK5i3LTambckEfMgRbkwkOcenBmFTaNXVs"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
 def load_remote_data(ticker):
     try:
         df = pd.read_csv(SHEET_URL)
-        row = df[df['Ticker'].astype(str) == str(ticker)]
+        # التأكد من مطابقة الرمز
+        row = df[df['Ticker'].astype(str).str.strip() == str(ticker).strip()]
         if not row.empty:
             return float(row.iloc[0]['Stop']), float(row.iloc[0]['Target']), float(row.iloc[0]['FairValue'])
-    except: pass
+    except:
+        pass
     return 0.0, 0.0, 0.0
 
 # --- 3. Load TASI Data ---
@@ -34,29 +34,33 @@ def load_tasi_data():
         df['Display'] = df['Name_Ar'] + " | " + df['Ticker']
         mapping = dict(zip(df['Display'], df['Ticker']))
         return sorted(list(mapping.keys())), mapping
-    except: return [], {}
+    except:
+        return [], {}
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 4. Session State ---
+# --- 4. Secure Session State ---
 if 'ready' not in st.session_state:
     st.session_state.update({
         'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
         'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0, 
         'ready': False, 'company_name': '---',
-        'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0, 'last_symbol': ''
+        'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0,
+        'last_symbol': ''
     })
 
-# --- 5. UI Header ---
+# --- 5. Main UI ---
 st.title("🛡️ SEF Terminal | Ultimate Hub")
 st.markdown("<p style='font-weight: bold; color: #555;'>Created By Abu Yahia</p>", unsafe_allow_html=True)
 
-# --- 6. Controls ---
+# --- 6. Input Controls ---
 c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
 
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
+    
+    # استدعاء البيانات تلقائياً من جوجل شيت عند اختيار السهم
     if symbol != st.session_state['last_symbol']:
         s_s, t_s, fv_s = load_remote_data(symbol)
         st.session_state.update({'stop': s_s, 'target': t_s, 'fv_val': fv_s, 'last_symbol': symbol})
@@ -66,7 +70,24 @@ s_in = c3.number_input("Anchor Level", value=float(st.session_state['stop']), fo
 t_in = c4.number_input("Target Price", value=float(st.session_state['target']), format="%.2f")
 fv_in = c5.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f")
 
-# --- 7. Buttons ---
+# --- 7. Ticker Info Bar (Visuals) ---
+if st.session_state['ready']:
+    color = "#09AB3B" if st.session_state['chg'] >= 0 else "#FF4B4B"
+    total_range = st.session_state['high52'] - st.session_state['low52']
+    pos_52 = ((p_in - st.session_state['low52']) / total_range) * 100 if total_range > 0 else 0
+    pos_fv = max(5, min(95, 50 + (((p_in - fv_in)/fv_in)*100))) if fv_in > 0 else 50
+
+    st.markdown(f"""
+        <div style="background-color: #f8f9fb; padding: 20px; border-radius: 10px; border-left: 8px solid {color}; margin-bottom: 25px;">
+            <h2 style="margin: 0;">{st.session_state['company_name']}</h2>
+            <div style="display: flex; align-items: baseline; gap: 15px;">
+                <span style="font-size: 2.8em; font-weight: bold;">{p_in:.2f}</span>
+                <span style="font-size: 1.3em; color: {color};">{st.session_state['chg']:+.2f} ({st.session_state['pct']:+.2f}%)</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# --- 8. Buttons ---
 with c6:
     st.write("##")
     b1, b2 = st.columns(2)
@@ -86,9 +107,11 @@ with c6:
                 'ready': True
             })
             st.rerun()
-    analyze_btn = b2.button("📊 Analyze", use_container_width=True)
+    
+    if b2.button("📊 Analyze", use_container_width=True):
+        st.session_state.update({'stop': s_in, 'target': t_in, 'fv_val': fv_in, 'ready': True})
 
-# --- 8. Report & PDF ---
+# --- 9. Strategic Report & PDF ---
 if st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -126,14 +149,14 @@ RESULT: {res_status}
     st.subheader("📄 Strategic Analysis Report")
     st.code(report_text, language="text")
 
-    # PDF Export Button
+    # زر التحميل بصيغة PDF
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     for line in report_text.split('\n'):
         pdf.cell(200, 10, txt=line, ln=True)
     
-    st.download_button(label="📥 Download PDF Report", 
+    st.download_button(label="📥 Download PDF", 
                        data=pdf.output(dest='S').encode('latin-1'), 
-                       file_name=f"SEF_{symbol}.pdf", 
+                       file_name=f"Report_{symbol}.pdf", 
                        mime="application/pdf")
