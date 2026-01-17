@@ -23,7 +23,7 @@ def load_tasi_data():
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 3. Session State (Fixed for Fair Value) ---
+# --- 3. Session State (Fixed & Secured) ---
 if 'ready' not in st.session_state:
     st.session_state.update({
         'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
@@ -34,7 +34,7 @@ if 'ready' not in st.session_state:
 
 st.title("🛡️ SEF Terminal | Ultimate Hub")
 
-# --- 4. Inputs Section (Modified to include Fair Value Square) ---
+# --- 4. Inputs Section ---
 c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
@@ -42,20 +42,18 @@ with c1:
 with c2: p_in = st.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
 with c3: s_in = st.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f")
 with c4: t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f")
-# 1. إضافة مربع الفير فاليو هنا (طلبك الأول)
-fv_in = c5.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f")
+with c5: fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f")
 
-# تحديث القيم لحظياً
+# Update state immediately
 st.session_state['fv_val'] = fv_in
-st.session_state['price'] = p_in
 
-# --- 5. Ticker Info Bar (Fair Value Bar under 52-Week Bar) ---
+# --- 5. Dynamic Info Bar ---
 if st.session_state['ready']:
     color = "#09AB3B" if st.session_state['chg'] >= 0 else "#FF4B4B"
     t_range = st.session_state['high52'] - st.session_state['low52']
     pos_52 = ((p_in - st.session_state['low52']) / t_range) * 100 if t_range > 0 else 0
     
-    # حساب موقع بار القيمة العادلة
+    # Fair Value Indicator Logic
     if fv_in > 0:
         fv_diff = ((p_in - fv_in) / fv_in) * 100
         pos_fv = 50 + (fv_diff * 2)
@@ -65,33 +63,28 @@ if st.session_state['ready']:
     st.markdown(f"""
         <div style="background-color: #f8f9fb; padding: 20px; border-radius: 10px; border-left: 8px solid {color}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <h2 style="margin: 0; color: #131722;">{st.session_state['company_name']}</h2>
-                <div style="display: flex; align-items: baseline; gap: 15px; margin-top: 10px;">
-                    <span style="font-size: 2.8em; font-weight: bold;">{p_in:.2f}</span>
-                    <span style="font-size: 1.3em; color: {color}; font-weight: bold;">{st.session_state['chg']:+.2f} ({st.session_state['pct']:+.2f}%)</span>
-                </div>
+                <h2 style="margin: 0;">{st.session_state['company_name']}</h2>
+                <span style="font-size: 2.5em; font-weight: bold;">{p_in:.2f}</span>
+                <span style="color: {color}; font-weight: bold; margin-left:10px;">{st.session_state['chg']:+.2f} ({st.session_state['pct']:+.2f}%)</span>
             </div>
-            <div style="width: 300px; text-align: right;">
-                <p style="margin:0; font-size: 0.85em; color: #787b86;">52 wk Range</p>
-                <div style="display: flex; justify-content: space-between; font-size: 0.9em; font-weight: bold; margin-bottom: 5px;">
-                    <span>{st.session_state['low52']:.2f}</span><span>{st.session_state['high52']:.2f}</span>
+            <div style="display: flex; gap: 30px;">
+                <div style="width: 180px;">
+                    <p style="margin:0; font-size: 0.8em; color: gray;">Fair Value Status</p>
+                    <div style="height: 6px; background: linear-gradient(to right, #09AB3B, #e0e3eb, #FF4B4B); border-radius: 3px; position: relative; margin-top:10px;">
+                        <div style="position: absolute; left: {pos_fv}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
+                    </div>
                 </div>
-                <div style="height: 6px; background: #e0e3eb; border-radius: 3px; position: relative; margin-bottom: 20px;">
-                    <div style="position: absolute; left: {pos_52}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
-                </div>
-                
-                <p style="margin:0; font-size: 0.85em; color: #787b86;">Fair Value Status</p>
-                <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: bold; margin-bottom: 5px;">
-                    <span style="color:#09AB3B">Under</span><span style="color:#FF4B4B">Over</span>
-                </div>
-                <div style="height: 6px; background: linear-gradient(to right, #09AB3B, #e0e3eb, #FF4B4B); border-radius: 3px; position: relative;">
-                    <div style="position: absolute; left: {pos_fv}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
+                <div style="width: 180px;">
+                    <p style="margin:0; font-size: 0.8em; color: gray;">52 wk Range</p>
+                    <div style="height: 6px; background: #e0e3eb; border-radius: 3px; position: relative; margin-top:10px;">
+                        <div style="position: absolute; left: {pos_52}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
+                    </div>
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-# --- 6. Radar & Analyze Logic ---
+# --- 6. Controls ---
 with c6:
     st.write("##")
     radar_col, analyze_col = st.columns(2)
@@ -101,8 +94,8 @@ with c6:
 if radar_btn:
     raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
     if not raw.empty:
-        if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
         close = raw['Close']
+        if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
         cur, prev = float(close.iloc[-1]), float(close.iloc[-2])
         st.session_state.update({
             'price': cur, 'chg': cur - prev, 'pct': ((cur - prev) / prev) * 100,
@@ -119,7 +112,7 @@ if radar_btn:
         })
         st.rerun()
 
-# --- 7. Full Strategic Report ---
+# --- 7. Full Strategic Report (As requested) ---
 if st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -128,12 +121,14 @@ if st.session_state['ready']:
     risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
     shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
     
+    # Distance Calculations
     p50 = ((p_in - st.session_state['sma50']) / st.session_state['sma50']) * 100 if st.session_state['sma50'] else 0
     p100 = ((p_in - st.session_state['sma100']) / st.session_state['sma100']) * 100 if st.session_state['sma100'] else 0
     p200 = ((p_in - st.session_state['sma200']) / st.session_state['sma200']) * 100 if st.session_state['sma200'] else 0
     
-    res_status = "VALID (Good Risk/Reward)" if rr_ratio >= 2 else "DANGEROUS (Avoid - Poor Reward)"
+    result_status = "VALID (Good Risk/Reward)" if rr_ratio >= 2 else "DANGEROUS (Avoid - Poor Reward)"
 
+    # The Detailed Report Text
     report_text = f"""
     SEF STRATEGIC ANALYSIS REPORT
     Created By Abu Yahia
@@ -152,19 +147,19 @@ if st.session_state['ready']:
     - R:R Ratio: 1:{round(rr_ratio, 2)}
     - Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
 
-    RESULT: {res_status}
+    RESULT: {result_status}
     ------------------------------
     "Capital preservation is the first priority."
     """
-    st.subheader("📄 Strategic Analysis Report")
+    
+    st.subheader("📄 Structural Analysis")
     st.code(report_text, language="text")
 
-    # Chart
+    # Chart with SMAs
     chart_data = yf.download(f"{symbol}.SR", period="1y", progress=False)
     if not chart_data.empty:
-        if isinstance(chart_data.columns, pd.MultiIndex): chart_data.columns = chart_data.columns.get_level_values(0)
-        plot_df = chart_data[['Close']].copy()
-        plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
-        plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
-        plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
-        st.line_chart(plot_df)
+        pdf = chart_data[['Close']].copy()
+        pdf['SMA 50'] = pdf['Close'].rolling(50).mean()
+        pdf['SMA 100'] = pdf['Close'].rolling(100).mean()
+        pdf['SMA 200'] = pdf['Close'].rolling(200).mean()
+        st.line_chart(pdf)
