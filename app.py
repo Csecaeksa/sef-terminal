@@ -24,7 +24,7 @@ def load_tasi_data():
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 3. Secure Session State (Modified to include Fair Value) ---
+# --- 3. Secure Session State ---
 if 'ready' not in st.session_state:
     st.session_state.update({
         'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
@@ -43,20 +43,16 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-# --- 5. Ticker Info Bar (Including 52-Week & Fair Value Visuals) ---
+# --- 5. Ticker Info Bar ---
 if st.session_state['ready']:
     color = "#09AB3B" if st.session_state['chg'] >= 0 else "#FF4B4B"
-    
-    # 52-Week Range Calculation
     total_range = st.session_state['high52'] - st.session_state['low52']
     pos_52 = ((st.session_state['price'] - st.session_state['low52']) / total_range) * 100 if total_range > 0 else 0
     
-    # Fair Value Visual Calculation (Compare price to your FV input)
-    # 50% means Price = Fair Value. Higher means Overvalued.
     fv_input = st.session_state['fv_val']
     if fv_input > 0:
         fv_diff = ((st.session_state['price'] - fv_input) / fv_input) * 100
-        pos_fv = 50 + (fv_diff * 2) # Sensitvity adjustment
+        pos_fv = 50 + (fv_diff * 2)
         pos_fv = max(5, min(95, pos_fv))
     else:
         pos_fv = 50
@@ -95,17 +91,14 @@ if st.session_state['ready']:
         </div>
     """, unsafe_allow_html=True)
 
-# --- 6. Input Controls (The 5-Column Row + Radar/Analyze) ---
+# --- 6. Input Controls ---
 c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
-
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
-
 with c2: p_in = st.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
 with c3: s_in = st.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f")
 with c4: t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f")
-# This is the "Red Square" replacement: Fair Value Input
 with c5: fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f")
 
 with c6:
@@ -114,7 +107,7 @@ with c6:
     with btn_col1: radar_btn = st.button("🛰️ Radar", use_container_width=True)
     with btn_col2: analyze_btn = st.button("📊 Analyze", use_container_width=True)
 
-# --- 7. Radar Logic (Data Fetching) ---
+# --- 7. Radar Logic ---
 if radar_btn:
     raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
     if not raw.empty:
@@ -128,7 +121,7 @@ if radar_btn:
             'high52': float(raw['High'].tail(252).max()),
             'stop': float(raw['Low'].tail(20).min()),
             'target': float(raw['High'].tail(20).max()),
-            'fv_val': cur, # Default FV to current price
+            'fv_val': cur,
             'sma50': float(close.rolling(50).mean().iloc[-1]),
             'sma100': float(close.rolling(100).mean().iloc[-1]),
             'sma200': float(close.rolling(200).mean().iloc[-1]),
@@ -136,17 +129,13 @@ if radar_btn:
         })
         st.rerun()
 
-# Update Fair Value in session state whenever changed
 st.session_state['fv_val'] = fv_in
 
 # --- 8. Technical Indicators Display ---
 if st.session_state['ready']:
     st.subheader("📈 Technical Indicators")
     m_cols = st.columns(3)
-    ma_data = [("SMA 50", st.session_state['sma50']), 
-               ("SMA 100", st.session_state['sma100']), 
-               ("SMA 200", st.session_state['sma200'])]
-    
+    ma_data = [("SMA 50", st.session_state['sma50']), ("SMA 100", st.session_state['sma100']), ("SMA 200", st.session_state['sma200'])]
     for i, (label, val) in enumerate(ma_data):
         diff = p_in - val
         ma_color = "#FF4B4B" if diff < 0 else "#09AB3B"
@@ -159,7 +148,7 @@ if st.session_state['ready']:
             </div>
         """, unsafe_allow_html=True)
 
-# --- 9. Analysis Results & Chart ---
+# --- 9. THE STRATEGIC REPORT (هذا هو التعديل المطلوب فقط) ---
 if analyze_btn or st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -168,16 +157,39 @@ if analyze_btn or st.session_state['ready']:
     risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
     shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
 
-    t_cols = st.columns(4)
-    t_cols[0].metric("Live Price", f"{p_in:.2f}")
-    t_cols[1].metric("R:R Ratio", f"1:{round(rr_ratio, 2)}")
-    t_cols[2].metric("Shares", f"{shares}")
-    t_cols[3].metric("Risk Cash", f"{balance * (risk_pct/100):.2f}")
+    # حسابات المسافات للمتوسطات كما في النسخة الأولى
+    p50 = ((p_in - st.session_state['sma50']) / st.session_state['sma50']) * 100 if st.session_state['sma50'] else 0
+    p100 = ((p_in - st.session_state['sma100']) / st.session_state['sma100']) * 100 if st.session_state['sma100'] else 0
+    p200 = ((p_in - st.session_state['sma200']) / st.session_state['sma200']) * 100 if st.session_state['sma200'] else 0
+    
+    result_status = "VALID (Good Risk/Reward)" if rr_ratio >= 2 else "DANGEROUS (Avoid - Poor Reward)"
 
-    # Text Report
-    res_status = "VALID" if rr_ratio >= 2 else "DANGEROUS"
-    report = f"Ticker: {symbol} | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}\nSMA50: {st.session_state['sma50']:.2f}\nSMA100: {st.session_state['sma100']:.2f}\nSMA200: {st.session_state['sma200']:.2f}\nResult: {res_status}"
-    st.code(report, language="text")
+    # العودة لتنسيق التقرير الاستراتيجي الأصلي
+    report_text = f"""
+    SEF STRATEGIC ANALYSIS REPORT
+    Created By Abu Yahia
+    ------------------------------
+    Ticker: {symbol}.SR | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}
+    
+    1. LEVELS:
+    - Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}
+
+    2. TECHNICALS (MAs & Distance):
+    - SMA 50 : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)
+    - SMA 100: {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)
+    - SMA 200: {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)
+
+    3. METRICS:
+    - R:R Ratio: 1:{round(rr_ratio, 2)}
+    - Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
+
+    RESULT: {result_status}
+    ------------------------------
+    "Capital preservation is the first priority."
+    """
+    
+    st.subheader("📄 SEF Structural Analysis")
+    st.code(report_text, language="text")
 
     # Chart with SMAs
     chart_data = yf.download(f"{symbol}.SR", period="1y", progress=False)
