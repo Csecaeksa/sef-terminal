@@ -8,7 +8,7 @@ from fpdf import FPDF
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 st.markdown("<style>.stAppToolbar {display: none;}</style>", unsafe_allow_html=True)
 
-# --- 2. Database Logic ---
+# --- 2. Database Logic (Read & Write) ---
 def load_stored_data(ticker):
     try:
         df = pd.read_csv("stock_database.csv")
@@ -19,6 +19,23 @@ def load_stored_data(ticker):
     except:
         pass
     return 0.0, 0.0, 0.0
+
+def save_data_to_db(ticker, stop, target, fv):
+    try:
+        df = pd.read_csv("stock_database.csv")
+        df['Ticker'] = df['Ticker'].astype(str).str.strip()
+        ticker_str = str(ticker).strip()
+        
+        if ticker_str in df['Ticker'].values:
+            df.loc[df['Ticker'] == ticker_str, ['Stop', 'Target', 'FairValue']] = [stop, target, fv]
+        else:
+            new_row = pd.DataFrame({'Ticker': [ticker_str], 'Stop': [stop], 'Target': [target], 'FairValue': [fv]})
+            df = pd.concat([df, new_row], ignore_index=True)
+            
+        df.to_csv("stock_database.csv", index=False)
+        return True
+    except:
+        return False
 
 # --- 3. Load TASI Data ---
 @st.cache_data
@@ -51,13 +68,12 @@ st.title("🛡️ SEF Terminal | Ultimate Hub")
 st.markdown("<p style='font-weight: bold; color: #555;'>Created By Abu Yahia</p>", unsafe_allow_html=True)
 
 # --- 6. Input Controls ---
-c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
+c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.5])
 
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
     
-    # تحديث البيانات المخزنة فور تغيير السهم
     if symbol != st.session_state['last_symbol']:
         s_db, t_db, fv_db = load_stored_data(symbol)
         st.session_state.update({
@@ -71,14 +87,19 @@ with c3: s_in = st.number_input("Anchor Level", value=float(st.session_state['st
 with c4: t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f", key=f"t_{symbol}")
 with c5: fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f", key=f"fv_{symbol}")
 
-# مزامنة المدخلات اليدوية مع الـ state
+# المزامنة
 st.session_state.update({'stop': s_in, 'target': t_in, 'fv_val': fv_in})
 
 with c6:
     st.write("##")
-    btn_col1, btn_col2 = st.columns(2)
-    radar_btn = btn_col1.button("🛰️ Radar", use_container_width=True)
-    analyze_btn = btn_col2.button("📊 Analyze", use_container_width=True)
+    b1, b2, b3 = st.columns(3)
+    radar_btn = b1.button("🛰️ Radar", use_container_width=True)
+    analyze_btn = b2.button("📊 Analyze", use_container_width=True)
+    if b3.button("💾 Save", use_container_width=True):
+        if save_data_to_db(symbol, s_in, t_in, fv_in):
+            st.toast(f"Saved {symbol}", icon="✅")
+        else:
+            st.error("Save Failed")
 
 # --- 7. Radar Logic ---
 if radar_btn:
@@ -99,7 +120,7 @@ if radar_btn:
         })
         st.rerun()
 
-# --- 8. Ticker Info Bar ---
+# --- 8. Visual Bar ---
 if st.session_state['ready']:
     color = "#09AB3B" if st.session_state['chg'] >= 0 else "#FF4B4B"
     total_range = st.session_state['high52'] - st.session_state['low52']
@@ -109,7 +130,7 @@ if st.session_state['ready']:
     st.markdown(f"""
         <div style="background-color: #f8f9fb; padding: 20px; border-radius: 10px; border-left: 8px solid {color}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <h2 style="margin: 0; color: #131722;">{st.session_state['company_name']}</h2>
+                <h2 style="margin: 0;">{st.session_state['company_name']}</h2>
                 <div style="display: flex; align-items: baseline; gap: 15px;">
                     <span style="font-size: 2.8em; font-weight: bold;">{p_in:.2f}</span>
                     <span style="font-size: 1.3em; color: {color};">{st.session_state['chg']:+.2f} ({st.session_state['pct']:+.2f}%)</span>
@@ -132,7 +153,7 @@ if st.session_state['ready']:
         </div>
     """, unsafe_allow_html=True)
 
-# --- 9. THE STRATEGIC REPORT & CHART ---
+# --- 9. Report & Chart ---
 if st.session_state['ready'] or analyze_btn:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -145,27 +166,26 @@ if st.session_state['ready'] or analyze_btn:
     p100 = ((p_in - st.session_state['sma100']) / st.session_state['sma100']) * 100 if st.session_state['sma100'] else 0
     p200 = ((p_in - st.session_state['sma200']) / st.session_state['sma200']) * 100 if st.session_state['sma200'] else 0
     
-    result_status = "VALID (Good Risk/Reward)" if rr_ratio >= 2 else "DANGEROUS (Avoid - Poor Reward)"
+    result_status = "VALID" if rr_ratio >= 2 else "DANGEROUS"
 
-    report_text = f"""SEF STRATEGIC ANALYSIS REPORT\nCreated By Abu Yahia\n------------------------------\nTicker: {symbol}.SR | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}\n\n1. LEVELS:\n- Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}\n\n2. TECHNICALS (MAs & Distance):\n- SMA 50 : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)\n- SMA 100: {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)\n- SMA 200: {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)\n\n3. METRICS:\n- R:R Ratio: 1:{round(rr_ratio, 2)}\n- Quantity: {shares} Shares | Risk Cash: {balance * (risk_pct/100):.2f}\n\nRESULT: {result_status}\n------------------------------"""
+    report_text = f"SEF REPORT\nTicker: {symbol}\nPrice: {p_in:.2f}\nStop: {s_in:.2f}\nTarget: {t_in:.2f}\nFair Value: {fv_in:.2f}\nRR: 1:{rr_ratio:.2f}\nQty: {shares}\nResult: {result_status}"
 
-    st.subheader("📄 SEF Structural Analysis")
+    st.subheader("📄 Strategic Analysis")
     st.code(report_text, language="text")
 
-    # إرجاع الشارت
+    # Chart
     chart_data = yf.download(f"{symbol}.SR", period="1y", progress=False)
     if not chart_data.empty:
         if isinstance(chart_data.columns, pd.MultiIndex): chart_data.columns = chart_data.columns.get_level_values(0)
-        plot_df = chart_data[['Close']].copy()
-        plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
-        plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
-        plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
-        st.line_chart(plot_df)
+        df_p = chart_data[['Close']].copy()
+        df_p['SMA 50'] = df_p['Close'].rolling(50).mean()
+        df_p['SMA 200'] = df_p['Close'].rolling(200).mean()
+        st.line_chart(df_p)
 
-    # زر PDF
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
+    pdf.cell(200, 10, txt="SEF Strategic Report", ln=True, align='C')
     for line in report_text.split('\n'):
         pdf.cell(200, 8, txt=line, ln=True)
-    st.download_button(label="📥 Download PDF", data=pdf.output(dest='S').encode('latin-1'), file_name=f"Report_{symbol}.pdf", mime="application/pdf")
+    st.download_button("📥 Download PDF", data=pdf.output(dest='S').encode('latin-1'), file_name=f"{symbol}.pdf")
