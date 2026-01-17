@@ -19,12 +19,12 @@ def load_tasi_data():
         df['Display'] = df['Name_Ar'] + " | " + df['Ticker']
         mapping = dict(zip(df['Display'], df['Ticker']))
         return sorted(list(mapping.keys())), mapping
-    except Exception:
+    except Exception as e:
         return [], {}
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 3. Secure Session State (Persistent Data) ---
+# --- 3. Secure Session State (Based on your last version) ---
 if 'ready' not in st.session_state:
     st.session_state.update({
         'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
@@ -33,13 +33,13 @@ if 'ready' not in st.session_state:
         'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0
     })
 
-# --- 4. Main UI Header & Branding ---
+# --- 4. Main UI Header & Signature ---
 st.title("🛡️ SEF Terminal | Ultimate Hub")
 
 st.markdown("""
     <div style='text-align: left; margin-top: -20px; margin-bottom: 20px;'>
         <p style='margin:0; font-size: 1.2em; font-weight: bold; color: #555;'>Created By Abu Yahia</p>
-        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ Educational purposes only. Not financial advice.</p>
+        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ This App Educational purposes only. Not financial advice (DYOR).</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -73,8 +73,7 @@ if st.session_state['ready']:
         </div>
     """, unsafe_allow_html=True)
 
-# --- 6. Input Controls (Updated Layout) ---
-# تم توزيع الأعمدة لتناسب مكان المربع الأحمر بجوار Target Price
+# --- 6. Input Controls (Updated Layout with Fair Value) ---
 c1, c2, c3, c4, c5, c6 = st.columns([2.2, 0.8, 0.8, 0.8, 0.8, 1.2])
 
 with c1:
@@ -84,10 +83,10 @@ with c1:
 with c2: p_in = st.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
 with c3: s_in = st.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f")
 with c4: t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f")
-# هنا تم وضع الـ Fair Value في مكان المربع الأحمر
+# إضافة خانة Fair Value بجانب Target Price كما طلبت
 with c5: fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f")
 
-# --- 7. Radar & Analyze Buttons ---
+# --- 7. Radar Engine (Includes SMAs Calculation) ---
 with c6:
     st.write("##")
     radar_col, analyze_col = st.columns(2)
@@ -109,7 +108,7 @@ if radar_btn:
             'high52': float(raw['High'].tail(252).max()),
             'stop': float(raw['Low'].tail(20).min()),
             'target': float(raw['High'].tail(20).max()),
-            'fv_val': cur, # Default to current price
+            'fv_val': cur,
             'sma50': float(close.rolling(50).mean().iloc[-1]),
             'sma100': float(close.rolling(100).mean().iloc[-1]),
             'sma200': float(close.rolling(200).mean().iloc[-1]),
