@@ -8,7 +8,7 @@ from fpdf import FPDF
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 st.markdown("<style>.stAppToolbar {display: none;}</style>", unsafe_allow_html=True)
 
-# --- 2. Database Logic 
+# --- 2. Database Logic ---
 def load_stored_data(ticker):
     try:
         df = pd.read_csv("stock_database.csv")
@@ -42,12 +42,12 @@ if 'ready' not in st.session_state:
         'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
         'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0, 
         'ready': False, 'company_name': '---',
-        'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0
+        'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0,
+        'last_symbol': ''
     })
 
 # --- 5. Main UI Header & Branding ---
 st.title("🛡️ SEF Terminal | Ultimate Hub")
-
 st.markdown("""
     <div style='text-align: left; margin-top: -20px; margin-bottom: 20px;'>
         <p style='margin:0; font-size: 1.2em; font-weight: bold; color: #555;'>Created By Abu Yahia</p>
@@ -109,30 +109,17 @@ c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
-    
-    # Check if stock changed to load from database
     if symbol != st.session_state.get('last_symbol', ''):
         s_db, t_db, fv_db = load_stored_data(symbol)
-        # Update session state directly
-        st.session_state['stop'] = s_db
-        st.session_state['target'] = t_db
-        st.session_state['fv_val'] = fv_db
-        st.session_state['last_symbol'] = symbol
-        st.rerun() # Refresh to show new values in inputs
+        st.session_state.update({'stop': s_db, 'target': t_db, 'fv_val': fv_db, 'last_symbol': symbol})
+        st.rerun()
 
-with c2: 
-    p_in = st.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
-with c3: 
-    s_in = st.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f", key="anchor_input")
-with c4: 
-    t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f", key="target_input")
-with fv_col := c5: 
-    fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f", key="fv_input")
+with c2: p_in = st.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
+with c3: s_in = st.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f", key="s_input")
+with c4: t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f", key="t_input")
+with c5: fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f", key="fv_input")
 
-# Update state so the rest of the app sees the manual changes
-st.session_state['stop'] = s_in
-st.session_state['target'] = t_in
-st.session_state['fv_val'] = fv_in
+st.session_state.update({'stop': s_in, 'target': t_in, 'fv_val': fv_in})
 
 with c6:
     st.write("##")
@@ -152,9 +139,6 @@ if radar_btn:
             'company_name': selected_stock.split('|')[0].strip(),
             'low52': float(raw['Low'].tail(252).min()),
             'high52': float(raw['High'].tail(252).max()),
-            'stop': float(raw['Low'].tail(20).min()),
-            'target': float(raw['High'].tail(20).max()),
-            'fv_val': cur,
             'sma50': float(close.rolling(50).mean().iloc[-1]),
             'sma100': float(close.rolling(100).mean().iloc[-1]),
             'sma200': float(close.rolling(200).mean().iloc[-1]),
@@ -162,9 +146,7 @@ if radar_btn:
         })
         st.rerun()
 
-st.session_state['fv_val'] = fv_in
-
-# --- 9. Technical Indicators Display ---
+# --- 9. Technical Indicators ---
 if st.session_state['ready']:
     st.subheader("📈 Technical Indicators")
     m_cols = st.columns(3)
@@ -181,7 +163,7 @@ if st.session_state['ready']:
             </div>
         """, unsafe_allow_html=True)
 
-# --- 10. THE STRATEGIC REPORT (هذا هو التعديل المطلوب فقط) ---
+# --- 10. THE STRATEGIC REPORT ---
 if analyze_btn or st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -189,49 +171,38 @@ if analyze_btn or st.session_state['ready']:
     balance = st.sidebar.number_input("Portfolio", value=100000)
     risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
     shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
-
-    # حسابات المسافات للمتوسطات كما في النسخة الأولى
     p50 = ((p_in - st.session_state['sma50']) / st.session_state['sma50']) * 100 if st.session_state['sma50'] else 0
     p100 = ((p_in - st.session_state['sma100']) / st.session_state['sma100']) * 100 if st.session_state['sma100'] else 0
     p200 = ((p_in - st.session_state['sma200']) / st.session_state['sma200']) * 100 if st.session_state['sma200'] else 0
-    
     result_status = "VALID (Good Risk/Reward)" if rr_ratio >= 2 else "DANGEROUS (Avoid - Poor Reward)"
 
-    # العودة لتنسيق التقرير الاستراتيجي الأصلي
-    report_text = f"""
-    SEF STRATEGIC ANALYSIS REPORT
-    Created By Abu Yahia
-    ------------------------------
-    Ticker: {symbol}.SR | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}
-    
-    1. LEVELS:
-    - Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}
+    report_text = f"""SEF STRATEGIC ANALYSIS REPORT
+Created By Abu Yahia
+------------------------------
+Ticker: {symbol}.SR | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}
 
-    2. TECHNICALS (MAs & Distance):
-    - SMA 50 : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)
-    - SMA 100: {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)
-    - SMA 200: {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)
+1. LEVELS:
+- Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}
 
-    3. METRICS:
-    - R:R Ratio: 1:{round(rr_ratio, 2)}
-    - Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
+2. TECHNICALS (MAs & Distance):
+- SMA 50 : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)
+- SMA 100: {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)
+- SMA 200: {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)
 
-    RESULT: {result_status}
-    ------------------------------
-    "Capital preservation is the first priority."
-    """
+3. METRICS:
+- R:R Ratio: 1:{round(rr_ratio, 2)}
+- Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
+
+RESULT: {result_status}
+------------------------------
+"Capital preservation is the first priority." """
     
     st.subheader("📄 SEF Structural Analysis")
     st.code(report_text, language="text")
-
-    # Chart with SMAs
-    chart_data = yf.download(f"{symbol}.SR", period="1y", progress=False)
-    if not chart_data.empty:
-        if isinstance(chart_data.columns, pd.MultiIndex): chart_data.columns = chart_data.columns.get_level_values(0)
-        plot_df = chart_data[['Close']].copy()
-        plot_df['SMA 50'] = plot_df['Close'].rolling(50).mean()
-        plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
-        plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
-        st.line_chart(plot_df)
-
-
+    
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=10)
+    for line in report_text.split('\n'):
+        pdf.cell(200, 8, txt=line.strip(), ln=True)
+    st.download_button(label="📥 Download PDF Analysis", data=pdf.output(dest='S').encode('latin-1'), file_name=f"SEF_{symbol}.pdf", mime="application/pdf")
