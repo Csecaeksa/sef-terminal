@@ -39,7 +39,7 @@ st.title("🛡️ SEF Terminal | Ultimate Hub")
 st.markdown("""
     <div style='text-align: left; margin-top: -20px; margin-bottom: 20px;'>
         <p style='margin:0; font-size: 1.2em; font-weight: bold; color: #555;'>Created By Abu Yahia</p>
-        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ Educational purposes only. Not financial advice.</p>
+        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ This App Educational purposes only. Not financial advice (DYOR).</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -161,3 +161,4 @@ if analyze_btn or st.session_state['ready']:
         plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
         plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
         st.line_chart(plot_df)
+
