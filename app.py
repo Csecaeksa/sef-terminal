@@ -8,12 +8,10 @@ from fpdf import FPDF
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 st.markdown("<style>.stAppToolbar {display: none;}</style>", unsafe_allow_html=True)
 
-# --- 2. Database logic ---
-DB_FILE = "stock_database.csv"
-
+# --- 2. Database Logic (الربط مع ملف stock_database.csv) ---
 def load_stored_data(ticker):
     try:
-        df = pd.read_csv(DB_FILE)
+        df = pd.read_csv("stock_database.csv")
         df['Ticker'] = df['Ticker'].astype(str).str.strip()
         row = df[df['Ticker'] == str(ticker).strip()]
         if not row.empty:
@@ -59,6 +57,7 @@ with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
     
+    # الربط التلقائي: تحميل البيانات من الملف عند تغيير السهم
     if symbol != st.session_state['last_symbol']:
         s_db, t_db, fv_db = load_stored_data(symbol)
         st.session_state.update({'stop': s_db, 'target': t_db, 'fv_val': fv_db, 'last_symbol': symbol})
@@ -79,96 +78,4 @@ if st.session_state['ready']:
         <div style="background-color: #f8f9fb; padding: 20px; border-radius: 10px; border-left: 8px solid {color}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h2 style="margin: 0;">{st.session_state['company_name']}</h2>
-                <div style="display: flex; align-items: baseline; gap: 15px;">
-                    <span style="font-size: 2.8em; font-weight: bold;">{p_in:.2f}</span>
-                    <span style="font-size: 1.3em; color: {color};">{st.session_state['chg']:+.2f} ({st.session_state['pct']:+.2f}%)</span>
-                </div>
-            </div>
-            <div style="display: flex; gap: 40px; text-align: right;">
-                <div style="width: 150px;">
-                    <p style="margin:0; font-size: 0.85em; color: gray;">52W Range</p>
-                    <div style="height: 6px; background: #e0e3eb; border-radius: 3px; position: relative; margin-top:10px;">
-                        <div style="position: absolute; left: {pos_52}%; top: -4px; width: 14px; height: 14px; background: {color}; border-radius: 50%;"></div>
-                    </div>
-                </div>
-                <div style="width: 180px;">
-                    <p style="margin:0; font-size: 0.85em; color: gray;">Fair Value Status</p>
-                    <div style="height: 6px; background: linear-gradient(to right, #09AB3B, #e0e3eb, #FF4B4B); border-radius: 3px; position: relative; margin-top:10px;">
-                        <div style="position: absolute; left: {pos_fv}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-# --- 8. Buttons ---
-with c6:
-    st.write("##")
-    btn_col1, btn_col2 = st.columns(2)
-    
-    if btn_col1.button("🛰️ Radar", use_container_width=True):
-        raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
-        if not raw.empty:
-            if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
-            close = raw['Close']
-            cur, prev = float(close.iloc[-1]), float(close.iloc[-2])
-            st.session_state.update({
-                'price': cur, 'chg': cur - prev, 'pct': ((cur - prev) / prev) * 100,
-                'company_name': selected_stock.split('|')[0].strip(),
-                'low52': float(raw['Low'].tail(252).min()), 'high52': float(raw['High'].tail(252).max()),
-                'sma50': float(close.rolling(50).mean().iloc[-1]),
-                'sma100': float(close.rolling(100).mean().iloc[-1]),
-                'sma200': float(close.rolling(200).mean().iloc[-1]),
-                'ready': True
-            })
-            st.rerun()
-
-    analyze_btn = btn_col2.button("📊 Analyze", use_container_width=True)
-
-# --- 9. THE STRATEGIC REPORT ---
-if st.session_state['ready'] or analyze_btn:
-    st.markdown("---")
-    risk_amt = abs(p_in - s_in)
-    rr_ratio = (t_in - p_in) / risk_amt if risk_amt > 0 else 0
-    balance = st.sidebar.number_input("Portfolio", value=100000)
-    risk_pct = st.sidebar.slider("Risk %", 0.5, 5.0, 1.0)
-    shares = math.floor((balance * (risk_pct/100)) / risk_amt) if risk_amt > 0 else 0
-    
-    p50 = ((p_in - st.session_state['sma50']) / st.session_state['sma50']) * 100 if st.session_state['sma50'] else 0
-    p100 = ((p_in - st.session_state['sma100']) / st.session_state['sma100']) * 100 if st.session_state['sma100'] else 0
-    p200 = ((p_in - st.session_state['sma200']) / st.session_state['sma200']) * 100 if st.session_state['sma200'] else 0
-    
-    result_status = "VALID (Good Risk/Reward)" if rr_ratio >= 2 else "DANGEROUS (Avoid - Poor Reward)"
-
-    report_text = f"""SEF STRATEGIC ANALYSIS REPORT
-Created By Abu Yahia
-------------------------------
-Ticker: {symbol}.SR | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}
-
-1. LEVELS:
-- Entry: {p_in:.2f} | Anchor (SL): {s_in:.2f} | Target: {t_in:.2f}
-
-2. TECHNICALS (MAs & Distance):
-- SMA 50 : {st.session_state['sma50']:.2f} (Dist: {p50:+.2f}%)
-- SMA 100: {st.session_state['sma100']:.2f} (Dist: {p100:+.2f}%)
-- SMA 200: {st.session_state['sma200']:.2f} (Dist: {p200:+.2f}%)
-
-3. METRICS:
-- R:R Ratio: 1:{round(rr_ratio, 2)}
-- Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
-
-RESULT: {result_status}
-------------------------------
-"Capital preservation is the first priority." """
-
-    st.subheader("📄 SEF Structural Analysis")
-    st.code(report_text, language="text")
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=10)
-    for line in report_text.split('\n'):
-        pdf.cell(200, 8, txt=line.strip(), ln=True)
-    
-    pdf_data = pdf.output(dest='S').encode('latin-1')
-    st.download_button(label="📥 Download PDF Analysis", data=pdf_data, file_name=f"SEF_{symbol}.pdf", mime="application/pdf")
+                <div
