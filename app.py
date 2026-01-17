@@ -40,7 +40,7 @@ st.title("🛡️ SEF Terminal | Ultimate Hub")
 st.markdown("""
     <div style='text-align: left; margin-top: -20px; margin-bottom: 20px;'>
         <p style='margin:0; font-size: 1.2em; font-weight: bold; color: #555;'>Created By Abu Yahia</p>
-        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ Educational purposes only. Not financial advice.</p>
+        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ This App Educational purposes only. Not financial advice.(DYOR)</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -162,3 +162,4 @@ if analyze_btn or st.session_state['ready']:
     if not chart_raw.empty:
         if isinstance(chart_raw.columns, pd.MultiIndex): chart_raw.columns = chart_raw.columns.get_level_values(0)
         st.line_chart(chart_raw['Close'])
+
