@@ -3,12 +3,27 @@ import pandas as pd
 import yfinance as yf
 import math
 from fpdf import FPDF
+from streamlit_gsheets import GSheetsConnection
 
 # --- 1. Page Config ---
 st.set_page_config(page_title="SEF Terminal Pro", layout="wide")
 st.markdown("<style>.stAppToolbar {display: none;}</style>", unsafe_allow_html=True)
 
-# --- 2. Load TASI Data ---
+# --- 2. Google Sheets Connection (Official Cloud Method) ---
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+def load_data_from_sheet(ticker):
+    try:
+        # قراءة البيانات من الرابط الموجود في Secrets
+        df = conn.read(ttl=0) # ttl=0 لضمان قراءة أحدث بيانات دائماً
+        row = df[df['Ticker'].astype(str) == str(ticker)]
+        if not row.empty:
+            return float(row.iloc[0]['Stop']), float(row.iloc[0]['Target']), float(row.iloc[0]['FairValue'])
+    except:
+        pass
+    return 0.0, 0.0, 0.0
+
+# --- 3. Load TASI Data ---
 @st.cache_data
 def load_tasi_data():
     try:
@@ -19,26 +34,22 @@ def load_tasi_data():
         df['Display'] = df['Name_Ar'] + " | " + df['Ticker']
         mapping = dict(zip(df['Display'], df['Ticker']))
         return sorted(list(mapping.keys())), mapping
-    except: return [], {}
+    except:
+        return [], {}
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 3. Memory Logic (URL-Based) ---
-# استرجاع القيم من الرابط إذا وجدت
-params = st.query_params
-def get_val(key, default):
-    return float(params[key]) if key in params else default
-
-# --- 4. Secure Session State ---
+# --- 4. Session State ---
 if 'ready' not in st.session_state:
     st.session_state.update({
-        'price': 0.0, 'stop': get_val('s', 0.0), 'target': get_val('t', 0.0), 'fv_val': get_val('fv', 0.0),
+        'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
         'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0, 
         'ready': False, 'company_name': '---',
-        'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0
+        'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0,
+        'last_symbol': ''
     })
 
-# --- 5. UI Header ---
+# --- 5. Main UI Header ---
 st.title("🛡️ SEF Terminal | Ultimate Hub")
 st.markdown("<p style='font-weight: bold; color: #555;'>Created By Abu Yahia</p>", unsafe_allow_html=True)
 
@@ -48,6 +59,11 @@ c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
+    
+    # استرجاع القيم تلقائياً عند تغيير السهم
+    if symbol != st.session_state['last_symbol']:
+        s_s, t_s, fv_s = load_data_from_sheet(symbol)
+        st.session_state.update({'stop': s_s, 'target': t_s, 'fv_val': fv_s, 'last_symbol': symbol})
 
 p_in = c2.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
 s_in = c3.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f")
@@ -63,8 +79,7 @@ with c6:
         if not raw.empty:
             if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
             close = raw['Close']
-            cur = float(close.iloc[-1])
-            prev = float(close.iloc[-2])
+            cur, prev = float(close.iloc[-1]), float(close.iloc[-2])
             st.session_state.update({
                 'price': cur, 'chg': cur - prev, 'pct': ((cur - prev) / prev) * 100,
                 'company_name': selected_stock.split('|')[0].strip(),
@@ -75,13 +90,11 @@ with c6:
                 'ready': True
             })
             st.rerun()
-    
+
     if b2.button("📊 Analyze", use_container_width=True):
-        # حفظ القيم في الرابط فوراً
-        st.query_params.update({"s": s_in, "t": t_in, "fv": fv_in})
         st.session_state.update({'stop': s_in, 'target': t_in, 'fv_val': fv_in, 'ready': True})
 
-# --- 8. THE STRATEGIC REPORT & PDF ---
+# --- 8. THE STRATEGIC REPORT (نفس تنسيق app 5 الأصلي) ---
 if st.session_state['ready']:
     st.markdown("---")
     risk_amt = abs(p_in - s_in)
@@ -111,7 +124,7 @@ Ticker: {symbol}.SR | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}
 
 3. METRICS:
 - R:R Ratio: 1:{round(rr_ratio, 2)}
-- Quantity: {shares} Shares | Risk: {balance * (risk_pct/100):.2f}
+- Quantity: {shares} Shares | Risk Cash: {balance * (risk_pct/100):.2f}
 
 RESULT: {res_status}
 ------------------------------"""
@@ -119,7 +132,7 @@ RESULT: {res_status}
     st.subheader("📄 Strategic Analysis Report")
     st.code(report_text, language="text")
 
-    # PDF Export
+    # --- زر التحميل PDF (موجود وشغال) ---
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
