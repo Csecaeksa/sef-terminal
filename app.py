@@ -24,43 +24,31 @@ def load_tasi_data():
 
 options, tasi_mapping = load_tasi_data()
 
-# --- 3. Secure Session State (Modified to include Fair Value) ---
+# --- 3. Secure Session State (Essential for SMAs) ---
 if 'ready' not in st.session_state:
     st.session_state.update({
-        'price': 0.0, 'stop': 0.0, 'target': 0.0, 'fv_val': 0.0,
+        'price': 0.0, 'stop': 0.0, 'target': 0.0,
         'sma50': 0.0, 'sma100': 0.0, 'sma200': 0.0, 
         'ready': False, 'company_name': '---',
         'chg': 0.0, 'pct': 0.0, 'low52': 0.0, 'high52': 1.0
     })
 
-# --- 4. Main UI Header & Branding ---
+# --- 4. Main UI Header & Signature ---
 st.title("🛡️ SEF Terminal | Ultimate Hub")
 
 st.markdown("""
     <div style='text-align: left; margin-top: -20px; margin-bottom: 20px;'>
         <p style='margin:0; font-size: 1.2em; font-weight: bold; color: #555;'>Created By Abu Yahia</p>
-        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ Educational purposes only. Not financial advice (DYOR).</p>
+        <p style='margin:0; font-size: 0.85em; color: #cc0000;'>⚠️ This App Educational purposes only. Not financial advice (DYOR).</p>
     </div>
     """, unsafe_allow_html=True)
 
-# --- 5. Ticker Info Bar (Including 52-Week & Fair Value Visuals) ---
+# --- 5. Ticker Info Bar & 52-Week Range ---
 if st.session_state['ready']:
     color = "#09AB3B" if st.session_state['chg'] >= 0 else "#FF4B4B"
-    
-    # 52-Week Range Calculation
     total_range = st.session_state['high52'] - st.session_state['low52']
     pos_52 = ((st.session_state['price'] - st.session_state['low52']) / total_range) * 100 if total_range > 0 else 0
     
-    # Fair Value Visual Calculation (Compare price to your FV input)
-    # 50% means Price = Fair Value. Higher means Overvalued.
-    fv_input = st.session_state['fv_val']
-    if fv_input > 0:
-        fv_diff = ((st.session_state['price'] - fv_input) / fv_input) * 100
-        pos_fv = 50 + (fv_diff * 2) # Sensitvity adjustment
-        pos_fv = max(5, min(95, pos_fv))
-    else:
-        pos_fv = 50
-
     st.markdown(f"""
         <div style="background-color: #f8f9fb; padding: 20px; border-radius: 10px; border-left: 8px solid {color}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
             <div>
@@ -72,72 +60,57 @@ if st.session_state['ready']:
                     </span>
                 </div>
             </div>
-            <div style="display: flex; gap: 40px; text-align: right;">
-                <div style="width: 180px;">
-                    <p style="margin:0; font-size: 0.85em; color: #787b86;">Fair Value Status</p>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.7em; font-weight: bold; margin-bottom: 5px;">
-                        <span style="color:#09AB3B">Under</span><span style="color:#FF4B4B">Over</span>
-                    </div>
-                    <div style="height: 6px; background: linear-gradient(to right, #09AB3B, #e0e3eb, #FF4B4B); border-radius: 3px; position: relative;">
-                        <div style="position: absolute; left: {pos_fv}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
-                    </div>
+            <div style="width: 300px; text-align: right;">
+                <p style="margin:0; font-size: 0.85em; color: #787b86;">52 wk Range</p>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; font-weight: bold; color: #131722; margin-bottom: 5px;">
+                    <span>{st.session_state['low52']:.2f}</span>
+                    <span>{st.session_state['high52']:.2f}</span>
                 </div>
-                <div style="width: 180px;">
-                    <p style="margin:0; font-size: 0.85em; color: #787b86;">52 wk Range</p>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; font-weight: bold; color: #131722; margin-bottom: 5px;">
-                        <span>{st.session_state['low52']:.2f}</span><span>{st.session_state['high52']:.2f}</span>
-                    </div>
-                    <div style="height: 6px; background: #e0e3eb; border-radius: 3px; position: relative;">
-                        <div style="position: absolute; left: {pos_52}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
-                    </div>
+                <div style="height: 6px; background: #e0e3eb; border-radius: 3px; position: relative;">
+                    <div style="position: absolute; left: {pos_52}%; top: -4px; width: 14px; height: 14px; background: #131722; border-radius: 50%; border: 2px solid white;"></div>
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-# --- 6. Input Controls (The 5-Column Row + Radar/Analyze) ---
-c1, c2, c3, c4, c5, c6 = st.columns([2.0, 0.8, 0.8, 0.8, 0.8, 1.2])
-
+# --- 6. Input Controls ---
+c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 0.8, 1])
 with c1:
     selected_stock = st.selectbox("Search Stock:", options=options)
     symbol = tasi_mapping[selected_stock]
-
 with c2: p_in = st.number_input("Market Price", value=float(st.session_state['price']), format="%.2f")
 with c3: s_in = st.number_input("Anchor Level", value=float(st.session_state['stop']), format="%.2f")
 with c4: t_in = st.number_input("Target Price", value=float(st.session_state['target']), format="%.2f")
-# This is the "Red Square" replacement: Fair Value Input
-with c5: fv_in = st.number_input("Fair Value", value=float(st.session_state['fv_val']), format="%.2f")
+
+# --- 7. Radar Engine (Includes SMAs Calculation) ---
+with c5:
+    st.write("##")
+    if st.button("🛰️ Radar", use_container_width=True):
+        raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
+        if not raw.empty:
+            if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
+            close = raw['Close']
+            cur = float(close.iloc[-1])
+            prev = float(close.iloc[-2])
+            st.session_state.update({
+                'price': cur,
+                'chg': cur - prev,
+                'pct': ((cur - prev) / prev) * 100,
+                'company_name': selected_stock.split('|')[0].strip(),
+                'low52': float(raw['Low'].tail(252).min()),
+                'high52': float(raw['High'].tail(252).max()),
+                'stop': float(raw['Low'].tail(20).min()),
+                'target': float(raw['High'].tail(20).max()),
+                'sma50': float(close.rolling(50).mean().iloc[-1]),
+                'sma100': float(close.rolling(100).mean().iloc[-1]),
+                'sma200': float(close.rolling(200).mean().iloc[-1]),
+                'ready': True
+            })
+            st.rerun()
 
 with c6:
     st.write("##")
-    btn_col1, btn_col2 = st.columns(2)
-    with btn_col1: radar_btn = st.button("🛰️ Radar", use_container_width=True)
-    with btn_col2: analyze_btn = st.button("📊 Analyze", use_container_width=True)
-
-# --- 7. Radar Logic (Data Fetching) ---
-if radar_btn:
-    raw = yf.download(f"{symbol}.SR", period="2y", progress=False)
-    if not raw.empty:
-        if isinstance(raw.columns, pd.MultiIndex): raw.columns = raw.columns.get_level_values(0)
-        close = raw['Close']
-        cur, prev = float(close.iloc[-1]), float(close.iloc[-2])
-        st.session_state.update({
-            'price': cur, 'chg': cur - prev, 'pct': ((cur - prev) / prev) * 100,
-            'company_name': selected_stock.split('|')[0].strip(),
-            'low52': float(raw['Low'].tail(252).min()),
-            'high52': float(raw['High'].tail(252).max()),
-            'stop': float(raw['Low'].tail(20).min()),
-            'target': float(raw['High'].tail(20).max()),
-            'fv_val': cur, # Default FV to current price
-            'sma50': float(close.rolling(50).mean().iloc[-1]),
-            'sma100': float(close.rolling(100).mean().iloc[-1]),
-            'sma200': float(close.rolling(200).mean().iloc[-1]),
-            'ready': True
-        })
-        st.rerun()
-
-# Update Fair Value in session state whenever changed
-st.session_state['fv_val'] = fv_in
+    analyze_btn = st.button("📊 Analyze", use_container_width=True)
 
 # --- 8. Technical Indicators Display ---
 if st.session_state['ready']:
@@ -154,7 +127,7 @@ if st.session_state['ready']:
         m_cols[i].markdown(f"""
             <div style="background-color: #f8f9fb; padding: 15px; border-radius: 10px; border-left: 6px solid {ma_color};">
                 <p style="margin:0; font-size:14px; color:#5c5c5c;">{label}</p>
-                <h3 style="margin:0; color:#31333F;">{val:.2f}</h3>
+                <h3 style="margin:0;">{val:.2f}</h3>
                 <p style="margin:0; color:{ma_color}; font-weight:bold;">{dist:+.2f}%</p>
             </div>
         """, unsafe_allow_html=True)
@@ -176,7 +149,7 @@ if analyze_btn or st.session_state['ready']:
 
     # Text Report
     res_status = "VALID" if rr_ratio >= 2 else "DANGEROUS"
-    report = f"Ticker: {symbol} | Price: {p_in:.2f} | Fair Value: {fv_in:.2f}\nSMA50: {st.session_state['sma50']:.2f}\nSMA100: {st.session_state['sma100']:.2f}\nSMA200: {st.session_state['sma200']:.2f}\nResult: {res_status}"
+    report = f"Ticker: {symbol} | Price: {p_in:.2f}\nSMA50: {st.session_state['sma50']:.2f}\nSMA100: {st.session_state['sma100']:.2f}\nSMA200: {st.session_state['sma200']:.2f}\nResult: {res_status}"
     st.code(report, language="text")
 
     # Chart with SMAs
@@ -188,3 +161,4 @@ if analyze_btn or st.session_state['ready']:
         plot_df['SMA 100'] = plot_df['Close'].rolling(100).mean()
         plot_df['SMA 200'] = plot_df['Close'].rolling(200).mean()
         st.line_chart(plot_df)
+
